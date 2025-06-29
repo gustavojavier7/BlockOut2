@@ -1878,6 +1878,11 @@ function touchdown() {
 
 function new_piece(canvas, ctx) {
   reset(canvas, ctx);
+  if (DEMO_MODE) {
+    setTimeout(function () {
+      bot_place(canvas, ctx);
+    }, 20);
+  }
 }
 
 function game_over(canvas, ctx) {
@@ -1885,6 +1890,8 @@ function game_over(canvas, ctx) {
   clearTimeout(ID2);
   render_pit(canvas, ctx);
   end_game(canvas, ctx);
+  DEMO_MODE = false;
+  $('#demo_button').removeClass('on');
 }
 
 function autofall(canvas, ctx) {
@@ -2317,6 +2324,16 @@ $(document).ready(function () {
   });
   $('#hs_back').click(function () {
     set_ui_start();
+  });
+
+  $('#demo_button').click(function () {
+    if (!DEMO_MODE) {
+      DEMO_MODE = true;
+      $('#demo_button').addClass('on');
+      var canvas = $('#screen').get(0);
+      var ctx = canvas.getContext('2d');
+      play_game(canvas, ctx, function () {});
+    }
   });
 
   refresh_column();
