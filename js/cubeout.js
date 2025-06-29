@@ -1712,6 +1712,9 @@ function play_game(canvas, ctx, start_handler) {
   reset_pit(0);
   refresh_column();
 
+  // When demo mode is enabled with speed 0, the pieces fall instantly and
+  // the AI cannot choose optimal placements. Force a minimum speed of 1 so
+  // the demo remains visible.
   GAME_SPEED = SPEED;
   if (DEMO_MODE && GAME_SPEED === 0) {
     GAME_SPEED = 1;
