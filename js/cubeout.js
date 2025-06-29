@@ -1712,12 +1712,13 @@ function play_game(canvas, ctx, start_handler) {
   reset_pit(0);
   refresh_column();
 
-  // When demo mode is enabled with speed 0, the pieces fall instantly and
-  // the AI cannot choose optimal placements. Force a minimum speed of 1 so
-  // the demo remains visible.
-  GAME_SPEED = SPEED;
-  if (DEMO_MODE && GAME_SPEED === 0) {
-    GAME_SPEED = 1;
+  // In demo mode let the AI control the piece without automatic falling
+  // so it can search for the best placement. Otherwise start with the
+  // user selected speed.
+  if (DEMO_MODE) {
+    GAME_SPEED = 0;
+  } else {
+    GAME_SPEED = SPEED;
   }
   BLOCKS_PLACED = 0;
   AUTOFALL_DELAY = SPEED_MAP[GAME_SPEED];
@@ -1949,6 +1950,7 @@ function change_speed(el) {
 }
 
 function speed_up(canvas, ctx) {
+  if (DEMO_MODE) return;
   BLOCKS_PLACED++;
   if (BLOCKS_PLACED % 50 === 0) {
     if (GAME_SPEED < 4) GAME_SPEED++;
