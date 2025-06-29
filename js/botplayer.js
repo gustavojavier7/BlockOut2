@@ -1,6 +1,13 @@
 // Simple BotPlayer implementation for demo mode
 var DEMO_MODE = false;
 
+// Heuristic coefficients ported from the original C++ bot
+var puzzleCoef = 11.7;
+var linesCoef = 0.7;
+var smoothCoef = -0.28;
+var holeCoef = -1.9;
+var peakCoef = -0.8;
+
 const BOT_ROTATIONS = [
   [0, 0, 0],
   [90, 0, 0], [180, 0, 0], [270, 0, 0],
@@ -70,6 +77,80 @@ function smoothness(heights) {
   return s;
 }
 
+function smoothness_sqr(heights) {
+  var height = heights.length;
+  var width = heights[0].length;
+  var total = 0;
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      if (x - 1 >= 0) {
+        var d = heights[y][x] - heights[y][x - 1];
+        total += d * d;
+      }
+      if (y - 1 >= 0) {
+        var d = heights[y][x] - heights[y - 1][x];
+        total += d * d;
+      }
+      if (x + 1 < width) {
+        var d = heights[y][x] - heights[y][x + 1];
+        total += d * d;
+      }
+      if (y + 1 < height) {
+        var d = heights[y][x] - heights[y + 1][x];
+        total += d * d;
+      }
+    }
+  }
+  if (total === 0) total = -10;
+  return total / (width * height);
+}
+
+function peakness(heights, bias) {
+  var height = heights.length;
+  var width = heights[0].length;
+  var note = 0;
+  for (var x = 0; x < width; x++) {
+    for (var y = 0; y < height; y++) {
+      var h = heights[y][x];
+      var ok = true;
+      if (x - 1 >= 0 && heights[y][x - 1] - h > bias) ok = false;
+      if (x + 1 < width && heights[y][x + 1] - h > bias) ok = false;
+      if (y - 1 >= 0 && heights[y - 1][x] - h > bias) ok = false;
+      if (y + 1 < height && heights[y + 1][x] - h > bias) ok = false;
+      if (ok) note += 1;
+    }
+  }
+  return note;
+}
+
+function common_edges(voxels, layers) {
+  var set = {};
+  for (var i = 0; i < voxels.length; i++) {
+    set[voxels[i][0] + ',' + voxels[i][1] + ',' + voxels[i][2]] = true;
+  }
+  var common = 0;
+  var edges = 0;
+  var neigh = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  for (var i = 0; i < voxels.length; i++) {
+    var v = voxels[i];
+    for (var n = 0; n < neigh.length; n++) {
+      var nx = v[0] + neigh[n][0];
+      var ny = v[1] + neigh[n][1];
+      var nz = v[2] + neigh[n][2];
+      if (set[nx + ',' + ny + ',' + nz]) continue;
+      if (nx < 0 || nx >= PIT_WIDTH || ny < 0 || ny >= PIT_HEIGHT || nz < 0 || nz >= PIT_DEPTH) {
+        edges++; common++; continue;
+      }
+      if (layers[nz][ny][nx] !== 0) {
+        edges++; common++; continue;
+      }
+      edges++;
+    }
+  }
+  if (edges === 0) return 0;
+  return common / edges;
+}
+
 function evaluate_position(voxels) {
   var layers = clone_layers(LAYERS);
   var counts = COUNTS.slice();
@@ -77,8 +158,15 @@ function evaluate_position(voxels) {
   var lines = check_full_layers(layers, counts);
   var h = column_heights(layers);
   var holes = count_holes(layers, h);
-  var sm = smoothness(h);
-  return lines * 10 - holes * 5 - sm * 2;
+  var sm = smoothness_sqr(h);
+  var pk = peakness(h, -2);
+  var ce = common_edges(voxels, LAYERS);
+  var linesNote = linesCoef * lines;
+  var smoothNote = smoothCoef * sm;
+  var peakNote = peakCoef * pk;
+  var holeNote = holeCoef * holes;
+  var commonNote = puzzleCoef * ce;
+  return linesNote + smoothNote + peakNote + holeNote + commonNote;
 }
 
 function best_move() {
