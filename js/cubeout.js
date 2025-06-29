@@ -1713,6 +1713,9 @@ function play_game(canvas, ctx, start_handler) {
   refresh_column();
 
   GAME_SPEED = SPEED;
+  if (DEMO_MODE && GAME_SPEED === 0) {
+    GAME_SPEED = 1;
+  }
   BLOCKS_PLACED = 0;
   AUTOFALL_DELAY = SPEED_MAP[GAME_SPEED];
   $('#speed .button').each(function () {
