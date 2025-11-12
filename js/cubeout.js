@@ -52,6 +52,10 @@ var FAST_ANIM_DURATION = 10;
 
 var ANIM_DURATION = MED_ANIM_DURATION;
 
+// demo bot timing (in milliseconds)
+var DEMO_BOT_PLACE_DELAY = 20;
+var DEMO_BOT_TOUCHDOWN_DELAY = 200;
+
 
 var FRAME_DELAY = 10;
 
@@ -1893,7 +1897,7 @@ function new_piece(canvas, ctx) {
   if (DEMO_MODE) {
     setTimeout(function () {
       bot_place(canvas, ctx);
-    }, 20);
+    }, DEMO_BOT_PLACE_DELAY);
   }
 }
 

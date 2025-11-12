@@ -218,7 +218,11 @@ function bot_place(canvas, ctx) {
   STATE.current_y = mv.y;
   STATE.current_z = mv.z;
   STATE.current_matrix = mv.matrix;
-  speed_up(canvas, ctx);
-  touchdown();
-  if (STATE.new_z == 0) game_over(canvas, ctx); else new_piece(canvas, ctx);
+  STATE.render_piece_flag = 1;
+  render_frame(canvas, ctx);
+  setTimeout(function () {
+    speed_up(canvas, ctx);
+    touchdown();
+    if (STATE.new_z == 0) game_over(canvas, ctx); else new_piece(canvas, ctx);
+  }, DEMO_BOT_TOUCHDOWN_DELAY);
 }
