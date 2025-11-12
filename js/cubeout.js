@@ -1734,6 +1734,11 @@ function play_game(canvas, ctx, start_handler) {
 
   STATE.refresh_layers_flag = 1;
   reset(canvas, ctx);
+  if (DEMO_MODE) {
+    setTimeout(function () {
+      bot_place(canvas, ctx);
+    }, 20);
+  }
   STATE.refresh_layers_flag = 0;
   STATE.render_shadow_flag = 0;
 

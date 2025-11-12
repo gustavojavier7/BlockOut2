@@ -170,6 +170,9 @@ function evaluate_position(voxels) {
 }
 
 function best_move() {
+  if (typeof console !== 'undefined' && console.log) {
+    console.log('[DemoBot] best_move called');
+  }
   var best = null;
   var bestScore = -1e9;
   for (var r = 0; r < BOT_ROTATIONS.length; r++) {
@@ -202,6 +205,9 @@ function best_move() {
 }
 
 function bot_place(canvas, ctx) {
+  if (typeof console !== 'undefined' && console.log) {
+    console.log('[DemoBot] bot_place called');
+  }
   var mv = best_move();
   if (!mv) { game_over(canvas, ctx); return; }
   STATE.new_x = mv.x;
