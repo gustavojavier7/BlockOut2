@@ -240,7 +240,7 @@ function bot_place(canvas, ctx) {
   STATE.render_piece_flag = 1;
   render_frame(canvas, ctx);
   
-  // Forzar que el game_loop sepa que debe hacer un touchdown al final del movimiento.
-  STATE.touchdown_flag = 1; 
+  // Intentar avanzar una fila hacia abajo para detectar el momento exacto del touchdown.
+  attempt_piece_descent();
 
 }
