@@ -50,6 +50,7 @@ var SLOW_ANIM_DURATION = 150;
 var MED_ANIM_DURATION = 70;
 var FAST_ANIM_DURATION = 10;
 
+// ANIM_DURATION es la variable clave que controla la velocidad de la animación.
 var ANIM_DURATION = MED_ANIM_DURATION;
 
 // demo bot timing (in milliseconds)
@@ -1347,6 +1348,7 @@ function play_game(canvas, ctx, start_handler) {
   STATE.refresh_layers_flag = 1;
   reset(canvas, ctx);
   
+  // Llamamos al bot para el primer movimiento con un pequeño retraso
   if (DEMO_MODE) {
     setTimeout(function () {
       bot_place(canvas, ctx);
@@ -1378,20 +1380,23 @@ function game_loop(canvas, ctx) {
       XC = EC - SC;
       SC = EC;
       var fpsEl = document.getElementById("fps");
+      // Asume que la interfaz tiene un elemento con ID 'fps'
       if (fpsEl) fpsEl.textContent = "FPS: " + (50*(1000/XC).toFixed(1));
   }
 
   var prev_progress = STATE.progress;
+  // La animación progresa dependiendo de la duración ANIM_DURATION
   STATE.progress = cap(STATE.progress + ELAPSED / ANIM_DURATION, 1);
 
   if (STATE.touchdown_flag && STATE.progress >= 1) {
-    speed_up(canvas, ctx);
+    // speed_up(canvas, ctx); // Eliminada, no se usa en modo bot
     touchdown();
     if (STATE.new_z == 0) game_over(canvas, ctx);
     else new_piece(canvas, ctx);
   }
 
   // animate
+  // Interpolación de posición (X, Y, Z)
   STATE.current_x = STATE.start_x + STATE.progress * (STATE.new_x - STATE.start_x);
   STATE.current_y = STATE.start_y + STATE.progress * (STATE.new_y - STATE.start_y);
   STATE.current_z = STATE.start_z + STATE.progress * (STATE.new_z - STATE.start_z);
@@ -1400,6 +1405,7 @@ function game_loop(canvas, ctx) {
     STATE.current_matrix = STATE.new_matrix;
     STATE.new_angles = [0, 0, 0];
   } else {
+    // Interpolación de rotación
     var angles = [
       STATE.progress * STATE.new_angles[0],
       STATE.progress * STATE.new_angles[1],
@@ -1521,6 +1527,11 @@ function autofall(canvas, ctx) {
     // Eliminado: La caída automática es manejada por el bot.
 }
 
+function speed_up(canvas, ctx) {
+    // Eliminado: No se usa en modo bot
+}
+
+
 /*****************************************************************************************/
 // User interface (macros) (Simplificadas)
 /*****************************************************************************************/
@@ -1537,7 +1548,8 @@ function set_ui_gameover() {
 }
 
 function refresh_score() {
-  var scoreEl = document.getElementById('score');
+  // Nota: La función en index.html sobreescribe esto para actualizar el elemento correcto
+  var scoreEl = document.getElementById('score'); 
   if (scoreEl) {
     scoreEl.textContent = pretty_number(STATE.score);
   }
@@ -1547,7 +1559,7 @@ function refresh_score() {
 // Settings
 /*****************************************************************************************/
 function save_settings() {
-  // Eliminada: Usamos la función de cookie del helper que SÍ existe
+  // Guarda las configuraciones PIT en cookies
   if (typeof $.cookie === 'function') {
       var tmp = SET + ':' + PIT_WIDTH + ':' + PIT_HEIGHT + ':' + PIT_DEPTH + ':' + SPEED;
       $.cookie('co_settings', tmp, { expires: 10000 });
@@ -1555,7 +1567,7 @@ function save_settings() {
 }
 
 function load_settings() {
-  // Eliminada: Usamos la función de cookie del helper que SÍ existe
+  // Carga las configuraciones PIT desde cookies
   if (typeof $.cookie === 'function') {
       var tmp = $.cookie('co_settings');
       if (tmp) {
@@ -1668,7 +1680,7 @@ function setRotateSpeed(spd) {
 
       ANIM_DURATION = SLOW_ANIM_DURATION;
     else if (spd === "fast") {
-        ANIM_DURATION = FAST_ANIM_DURATION;
+        ANIM_DURATION = FAST_ANIMATION;
     } else {
         ANIM_DURATION = MED_ANIM_DURATION;
     }
@@ -1739,3 +1751,16 @@ function reset_allowed() {
       ALLOWED.push(i);
   }
 }
+```eof
+
+***
+
+### ⚙️ Siguientes Pasos (Recomendación)
+
+Una vez que haya guardado esto como **`engine.js`** y el código corregido del bot como **`bot.js`** (el que me pasó con la lógica de `best_move`), podemos implementar el **control de velocidad** para su DEMO.
+
+1.  **Implementar Control de Velocidad:** Añadir un selector en `index.html` para que el usuario pueda llamar a la función `setRotateSpeed()` (ubicada en `engine.js`) y cambiar `ANIM_DURATION` a `SLOW_ANIM_DURATION`, `MED_ANIM_DURATION`, o `FAST_ANIM_DURATION`.
+2.  **Revisión de Heurística:** Analizar y optimizar los coeficientes del bot en `bot.js`.
+3.  Estado y seguimiento del ticket de soporte por la conexión de red (INC2386078).
+4.  Consulta sobre el formato de documentos técnicos.
+5.  Temas de la consulta del 2025-11-05 (Instrucción de lista numerada).
