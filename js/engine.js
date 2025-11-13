@@ -1714,6 +1714,25 @@ $(document).ready(function () {
   STATE.score = 0;
   refresh_score();
 
+  // Inicialización obligatoria del estado para que game_loop arranque bien
+STATE.progress = 0;
+STATE.current_x = 0;
+STATE.current_y = 0;
+STATE.current_z = 0;
+STATE.current_matrix = [1,0,0, 0,1,0, 0,0,1];
+
+STATE.start_x = 0;
+STATE.start_y = 0;
+STATE.start_z = 0;
+STATE.start_matrix = [1,0,0, 0,1,0, 0,0,1];
+
+STATE.new_x = 0;
+STATE.new_y = 0;
+STATE.new_z = 0;
+STATE.new_matrix = [1,0,0, 0,1,0, 0,0,1];
+STATE.new_angles = [0,0,0];
+
+
   
   // Eliminamos listeners de UI innecesarios
   $('#pitSizeSelect').change(function() {
