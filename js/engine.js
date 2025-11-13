@@ -1751,16 +1751,3 @@ function reset_allowed() {
       ALLOWED.push(i);
   }
 }
-```eof
-
-***
-
-### ⚙️ Siguientes Pasos (Recomendación)
-
-Una vez que haya guardado esto como **`engine.js`** y el código corregido del bot como **`bot.js`** (el que me pasó con la lógica de `best_move`), podemos implementar el **control de velocidad** para su DEMO.
-
-1.  **Implementar Control de Velocidad:** Añadir un selector en `index.html` para que el usuario pueda llamar a la función `setRotateSpeed()` (ubicada en `engine.js`) y cambiar `ANIM_DURATION` a `SLOW_ANIM_DURATION`, `MED_ANIM_DURATION`, o `FAST_ANIM_DURATION`.
-2.  **Revisión de Heurística:** Analizar y optimizar los coeficientes del bot en `bot.js`.
-3.  Estado y seguimiento del ticket de soporte por la conexión de red (INC2386078).
-4.  Consulta sobre el formato de documentos técnicos.
-5.  Temas de la consulta del 2025-11-05 (Instrucción de lista numerada).
