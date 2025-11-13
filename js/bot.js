@@ -204,7 +204,8 @@ function best_move() {
         var score = evaluate_position(vox);
         if (score > bestScore) {
           bestScore = score;
-          best = { x: x, y: y, z: z, matrix: mat };
+          // *** CORRECCIÓN CRUCIAL: Devolver los ángulos para la animación ***
+          best = { x: x, y: y, z: z, matrix: mat, angles: ang };
         }
       }
     }
@@ -219,12 +220,13 @@ function bot_place(canvas, ctx) {
   var mv = best_move();
   if (!mv) { game_over(canvas, ctx); return; }
   
-  // *** INICIO DE MODIFICACIÓN CRUCIAL PARA ANIMACIÓN ***
   // Establecer la posición calculada por el bot como el nuevo destino.
   STATE.new_x = mv.x;
   STATE.new_y = mv.y;
   STATE.new_z = mv.z;
   STATE.new_matrix = mv.matrix;
+  // *** CORRECCIÓN CRUCIAL: Asignar los nuevos ángulos para la animación de rotación ***
+  STATE.new_angles = mv.angles;
   
   // Establecer el inicio de la animación en la posición actual de la pieza (la posición de generación, centrada)
   STATE.start_x = STATE.current_x;
@@ -235,17 +237,10 @@ function bot_place(canvas, ctx) {
   // Reiniciar el progreso para iniciar la animación en game_loop
   STATE.progress = 0; 
   
-  // *** FIN DE MODIFICACIÓN CRUCIAL PARA ANIMACIÓN ***
-  
   STATE.render_piece_flag = 1;
   render_frame(canvas, ctx);
   
-  // Ya no llamamos directamente a touchdown. El game_loop se encargará de esto
-  // cuando STATE.progress alcance 1, ya que hemos establecido el destino final (mv.z).
-  
   // Forzar que el game_loop sepa que debe hacer un touchdown al final del movimiento.
-  // En la lógica original, esto lo hacía `autofall`. Como el bot está haciendo el
-  // movimiento vertical completo, lo marcamos para el final del ciclo.
   STATE.touchdown_flag = 1; 
 
 }
