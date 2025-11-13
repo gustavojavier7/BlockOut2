@@ -1512,7 +1512,7 @@ function new_piece(canvas, ctx) {
   }
 }
 
-ffunction game_over(canvas, ctx) {
+function game_over(canvas, ctx) {
 
   if (DEMO_MODE) {
     // En DEMO: el juego nunca se detiene
