@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Blockout DEMO Bot</title>
+	<style>
+		body {
+			background: #111;
+			color: #eee;
+			font-family: 'Inter', sans-serif;
+			margin: 0;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			gap: 20px;
+			padding: 20px;
+		}
+		#game-wrapper {
+			display: flex;
+			gap: 30px;
+			align-items: flex-start;
+		}
+		#screen {
+			border: 2px solid #333;
+			background: #000;
+			border-radius: 8px;
+			box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+		}
+		#screen2 {
+			border: 2px solid #333;
+			background: #050505;
+			border-radius: 8px;
+			height: 500px; /* Asegura que la columna de capas mantenga la altura */
+		}
+		#controls {
+			display: flex;
+			flex-direction: row;
+			gap: 16px;
+			align-items: center;
+			flex-wrap: wrap;
+			justify-content: center;
+		}
+		#controls select,
+		#controls button {
+			padding: 8px 12px;
+			border-radius: 6px;
+			border: 1px solid #444;
+			background: #222;
+			color: #eee;
+			cursor: pointer;
+			transition: background-color 0.2s;
+		}
+		#controls button:hover, #controls select:hover {
+			background: #333;
+		}
+		#controls button.on {
+			background: #1a73e8;
+			border-color: #4285f4;
+			font-weight: bold;
+		}
+		#hud {
+			display: flex;
+			gap: 25px;
+			align-items: center;
+			justify-content: center;
+			width: 100%;
+			max-width: 900px;
+			padding: 10px 0;
+			font-size: 1.1rem;
+		}
+		#score, #fps {
+			background: #222;
+			padding: 6px 12px;
+			border-radius: 4px;
+		}
+		h1 {
+			color: #4285f4;
+			font-size: 2.5rem;
+			font-weight: 700;
+		}
+	</style>
+
+	<script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js"></script>
+
+	<script src="js/engine.js"></script>
+	<script src="js/bot.js"></script>
+
+	<script>
+		// --- Funciones Helpers de Interfaz ---
+
+		function applyPitFromSelect() {
+			var val = document.getElementById('pitSizeSelect').value; // "5x5x10"
+			// Creamos un objeto "tipo botón" con innerHTML como esperan tus funciones (engine.js)
+			var fakeEl = { innerHTML: val.toLowerCase() };
+
+			var canvas = $('#screen').get(0);
+			var ctx = canvas.getContext('2d');
+
+			// Usa tu lógica original de cambio de pozo
+			change_pit(fakeEl, canvas, ctx);
+			reset_allowed();
+
+			// Si estábamos en DEMO, reiniciar el juego demo con el nuevo pozo
+			if (DEMO_MODE) {
+				startDemo();
+			}
+		}
+
+		function applySpeedFromSelect() {
+			var speed = document.getElementById('speedSelect').value;
+			// Llama a la función en engine.js
+			setRotateSpeed(speed);
+			// Muestra un mensaje en consola para confirmar
+			console.log("Velocidad de animación cambiada a:", speed);
+		}
+
+		function startDemo() {
+			var canvas = $('#screen').get(0);
+			var ctx = canvas.getContext('2d');
+
+			// Si ya hay un loop corriendo, que termine primero
+			try { game_over(canvas, ctx); } catch (e) {}
+
+			DEMO_MODE = true;
+			$('#demoStartBtn').addClass('on');
+			$('#demoStopBtn').removeClass('on');
+
+			// Arranca el juego directamente en modo DEMO
+			// Nota: play_game llama internamente a new_piece y new_piece llama a bot_place
+			play_game(canvas, ctx, function () {});
+		}
+
+		function stopDemo() {
+			var canvas = $('#screen').get(0);
+			var ctx = canvas.getContext('2d');
+
+			DEMO_MODE = false;
+			$('#demoStartBtn').removeClass('on');
+			$('#demoStopBtn').addClass('on');
+
+			// Forzamos fin de juego (esto llama a end_game en engine.js)
+			game_over(canvas, ctx);
+		}
+
+		// Hook de inicio: esperar a que todo tu $(document).ready del engine se ejecute
+		$(function () {
+			// Ajustar los selectores al tamaño y velocidad inicial del pozo
+			var pitStr = PIT_WIDTH + "x" + PIT_HEIGHT + "x" + PIT_DEPTH;
+			$('#pitSizeSelect').val(pitStr);
+			$('#speedSelect').val('medium'); // Por defecto en el motor
+		});
+	</script>
+</head>
+<body>
+	<h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">Blockout DEMO – Bot Automático</h1>
+
+	<div id="controls">
+		<label for="pitSizeSelect" class="text-sm text-gray-400">Tamaño del pozo:</label>
+		<select id="pitSizeSelect" onchange="applyPitFromSelect()">
+			<option value="5x5x10">5 × 5 × 10</option>
+			<option value="5x5x15">5 × 5 × 15</option>
+			<option value="5x5x20">5 × 5 × 20</option>
+			<option value="6x6x10">6 × 6 × 10</option>
+			<option value="6x6x15">6 × 6 × 15</option>
+			<option value="6x6x20">6 × 6 × 20</option>
+		</select>
+
+		<label for="speedSelect" class="text-sm text-gray-400">Velocidad de Animación:</label>
+		<select id="speedSelect" onchange="applySpeedFromSelect()">
+			<option value="slow">Lenta</option>
+			<option value="medium" selected>Media</option>
+			<option value="fast">Rápida</option>
+		</select>
+
+		<button id="demoStartBtn" onclick="startDemo()">Iniciar DEMO</button>
+		<button id="demoStopBtn" class="on" onclick="stopDemo()">Detener DEMO</button>
+	</div>
+
+	<div id="hud">
+		<div id="score">Score: 0</div>
+		<div id="fps">FPS: --</div>
+	</div>
+
+	<div id="game-wrapper">
+		<canvas id="screen" width="500" height="500"></canvas>
+		<canvas id="screen2" width="80" height="500"></canvas>
+	</div>
+
+	<div id="message" class="hud" style="display:none;"></div>
+	<div id="column" class="hud" style="display:none;"></div>
+	<div id="footer" class="hud" style="display:none;"></div>
+	<div id="difficulty" class="hud" style="display:none;"></div>
+	<div id="keyset" class="hud" style="display:none;"></div>
+	<div id="highscores" class="hud" style="display:none;"></div>
+	<div id="getGamerName" class="hud" style="display:none;"></div>
+	<div id="over" class="hud" style="display:none;"></div>
+	<button id="demo_button" style="display:none;"></button>
+</body>
+</html>
