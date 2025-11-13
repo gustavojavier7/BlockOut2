@@ -1512,14 +1512,21 @@ function new_piece(canvas, ctx) {
   }
 }
 
-function game_over(canvas, ctx) {
+ffunction game_over(canvas, ctx) {
+
+  if (DEMO_MODE) {
+    // En DEMO: el juego nunca se detiene
+    console.log("[DEMO] Ignorando game_over, generando nueva pieza...");
+    new_piece(canvas, ctx);
+    return;
+  }
+
+  // Modo normal (si existiera)
   clearTimeout(ID1);
   clearTimeout(ID2);
   render_pit(canvas, ctx);
   end_game(canvas, ctx);
   DEMO_MODE = false;
-  
-  // Ya no hay elementos UI que actualizar, solo la consola
   console.log("Game Over. Final Score:", STATE.score);
 }
 
