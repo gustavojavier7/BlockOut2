@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockout DEMO Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos base para la interfaz moderna */
+        body {
+            font-family: system-ui, sans-serif;
+            background: #1a1a1a;
+        }
+
+        #game-wrapper {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            margin-top: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        }
+
+        #screen {
+            border: 1px solid #333;
+            background: #000;
+        }
+
+        #screen2 {
+            border: 1px solid #333;
+            background: #050505;
+        }
+
+        /* Estilos de botones y controles */
+        #controls select,
+        #controls button {
+            transition: all 0.2s;
+        }
+
+        #controls button.on {
+            background-color: #2563eb;
+            /* blue-600 */
+            border-color: #3b82f6;
+            /* blue-500 */
+        }
+
+        #controls button:hover:not(.on) {
+            background-color: #262626;
+            /* neutral-800 */
+        }
+
+        #fps {
+            color: #10b981;
+            /* emerald-500 */
+            font-weight: 600;
+        }
+
+        #score-display {
+            color: #f59e0b;
+            /* amber-500 */
+            font-weight: 700;
+            font-size: 24px;
+        }
+    </style>
+</head>
+
+<body class="flex flex-col items-center p-4 min-h-screen">
+    <h1 class="text-3xl font-bold text-white mb-4">Blockout DEMO – Bot Automático</h1>
+
+    <div id="controls" class="flex flex-row gap-4 flex-wrap justify-center p-3 bg-gray-800 rounded-lg shadow-md mb-6">
+        <label for="pitSizeSelect" class="text-gray-300 flex items-center gap-2">
+            Tamaño del pozo:
+            <select id="pitSizeSelect" onchange="applyPitFromSelect()"
+                class="bg-gray-700 text-white p-2 rounded-md border border-gray-600 focus:ring-blue-500 focus:border-blue-500">
+                <option value="5x5x10">5 × 5 × 10</option>
+                <option value="5x5x15">5 × 5 × 15</option>
+                <option value="5x5x20">5 × 5 × 20</option>
+                <option value="6x6x10">6 × 6 × 10</option>
+                <option value="6x6x15">6 × 6 × 15</option>
+                <option value="6x6x20">6 × 6 × 20</option>
+            </select>
+        </label>
+
+        <button id="demoStartBtn" onclick="startDemo()"
+            class="bg-blue-600 text-white p-2 rounded-md hover:bg-blue-700">Iniciar DEMO</button>
+        <button id="demoStopBtn" onclick="stopDemo()"
+            class="bg-red-600 text-white p-2 rounded-md hover:bg-red-700">Detener DEMO</button>
+    </div>
+
+    <div id="hud" class="flex gap-10 justify-center w-full max-w-xl mb-6 p-4 bg-gray-800 rounded-lg shadow-md">
+        <div class="text-gray-300 text-lg">Score: <span id="score-display">0</span></div>
+        <div id="fps" class="text-gray-300 text-lg">FPS: --</div>
+    </div>
+
+    <div id="game-wrapper">
+        <canvas id="screen" width="500" height="500" class="rounded-lg"></canvas>
+        <canvas id="screen2" width="80" height="500" class="rounded-lg"></canvas>
+    </div>
+
+    <!-- Scripts del motor y bot (Cargamos los archivos que usted subió, pero usaremos su contenido modificado) -->
+    <script src="https://code.jquery.com/jquery-1.11.3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-cookie/1.4.1/jquery.cookie.min.js"></script>
+
+    <!-- Usaremos el contenido modificado en los bloques de arriba -->
+    <script src="cubeout.js"></script>
+    <script src="botplayer.js"></script>
+
+    <script>
+        // Helpers para enganchar el HTML con tu engine
+        const screenCanvas = document.getElementById('screen');
+        const screen2Canvas = document.getElementById('screen2');
+
+        if (!screenCanvas || !screen2Canvas) {
+            console.error("No se encontraron los elementos canvas.");
+        } else {
+            // Inicialización de contexto para evitar errores en las funciones
+            const ctx = screenCanvas.getContext('2d');
+
+            function applyPitFromSelect() {
+                var val = document.getElementById('pitSizeSelect').value; // "5x5x10"
+                // Creamos un objeto "tipo botón" con innerHTML como esperan tus funciones
+                var fakeEl = { innerHTML: val.toLowerCase() };
+
+                // Usa tu lógica original de cambio de pozo
+                // Las variables globales PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH son actualizadas dentro de change_pit
+                change_pit(fakeEl, screenCanvas, ctx);
+                // Aseguramos que solo las piezas que caben en el nuevo pozo se generen
+                reset_allowed(); 
+
+                // Si estábamos en DEMO, reiniciar el juego demo con el nuevo pozo
+                if (DEMO_MODE) {
+                    startDemo();
+                } else {
+                    // Si no está en demo, al menos actualizar la vista del pozo y la columna
+                    render_pit(screenCanvas, ctx);
+                    refresh_column();
+                }
+            }
+
+            function startDemo() {
+                // Usamos el contexto definido al inicio
+                // Si ya hay un loop corriendo, que termine primero
+                try { game_over(screenCanvas, ctx); } catch (e) { }
+
+                DEMO_MODE = true;
+                $('#demoStartBtn').addClass('on').prop('disabled', true);
+                $('#demoStopBtn').removeClass('on').prop('disabled', false);
+
+                // Arranca el juego directamente en modo DEMO
+                play_game(screenCanvas, ctx, function () { });
+            }
+
+            function stopDemo() {
+                // Usamos el contexto definido al inicio
+                DEMO_MODE = false;
+                $('#demoStartBtn').removeClass('on').prop('disabled', false);
+                $('#demoStopBtn').addClass('on').prop('disabled', true);
+
+                // Forzamos fin de juego
+                game_over(screenCanvas, ctx);
+            }
+
+            // Hook de inicio: esperar a que todo tu $(document).ready del engine se ejecute
+            $(function () {
+                // Inicialmente, detener el botón de Stop
+                $('#demoStopBtn').prop('disabled', true);
+
+                // Ajustar el select al tamaño actual del pozo (cargado desde cookie o default)
+                var pitStr = PIT_WIDTH + "x" + PIT_HEIGHT + "x" + PIT_DEPTH;
+                $('#pitSizeSelect').val(pitStr);
+
+                // Opcional: iniciar directamente en DEMO
+                // startDemo();
+
+                // Mapear el score al span correcto
+                window.refresh_score = function () {
+                    var scoreEl = document.getElementById('score-display');
+                    if (scoreEl) {
+                        scoreEl.textContent = pretty_number(STATE.score);
+                    }
+                }
+            });
+        }
+    </script>
+    <!-- Elementos que tu engine espera (los mantenemos vacíos pero definidos) -->
+    <div id="message" style="display:none;"></div>
+    <div id="column" style="display:none;"></div>
+    <div id="footer" style="display:none;"></div>
+    <div id="difficulty" style="display:none;"></div>
+    <div id="keyset" style="display:none;"></div>
+    <div id="highscores" style="display:none;"></div>
+    <div id="getGamerName" style="display:none;"></div>
+    <div id="over" style="display:none;"></div>
+    <button id="demo_button" style="display:none;"></button>
+
+</body>
+
+</html>
