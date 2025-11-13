@@ -1476,6 +1476,31 @@ function reset(canvas, ctx) {
   render_frame(canvas, ctx);
 }
 
+function attempt_piece_descent() {
+  if (!STATE.piece) return false;
+
+  var targetZ = STATE.new_z + 1;
+  var projected = project_voxels(
+    STATE.piece,
+    STATE.new_x,
+    STATE.new_y,
+    targetZ,
+    STATE.new_matrix
+  );
+
+  if (is_overlap_layers(projected, PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH, LAYERS)) {
+    STATE.touchdown_flag = true;
+    return false;
+  }
+
+  set_start(true);
+  STATE.new_z = targetZ;
+  STATE.progress = 0;
+  STATE.touchdown_flag = 0;
+
+  return true;
+}
+
 function set_start(keep_angles) {
   STATE.start_x = STATE.current_x;
   STATE.start_y = STATE.current_y;
