@@ -1680,8 +1680,8 @@ function setRotateSpeed(spd) {
 
       ANIM_DURATION = SLOW_ANIM_DURATION;
     else if (spd === "fast") {
-        ANIM_DURATION = FAST_ANIMATION;
-    } else {
+        ANIM_DURATION = FAST_ANIM_DURATION;
+} else {
         ANIM_DURATION = MED_ANIM_DURATION;
     }
 }
