@@ -1703,9 +1703,10 @@ $(document).ready(function () {
   reset_pit(3);
   render_pit(canvas, ctx);
   reset_allowed();
-  
-  // Inicializamos score a 0
-  refresh_score(); 
+
+  STATE.score = 0;
+  refresh_score();
+
   
   // Eliminamos listeners de UI innecesarios
   $('#pitSizeSelect').change(function() {
