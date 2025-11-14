@@ -219,6 +219,10 @@ function bot_place(canvas, ctx) {
   }
   var mv = best_move();
   if (!mv) { game_over(canvas, ctx); return; }
+
+  if (typeof console !== 'undefined' && console.log) {
+    console.log('[DemoBot] destino calculado', mv.x, mv.y, mv.z, mv.angles);
+  }
   
   // Establecer la posición calculada por el bot como el nuevo destino.
   STATE.new_x = mv.x;
