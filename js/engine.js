@@ -1145,21 +1145,43 @@ function project_voxels(piece, x, y, z, rotmatrix) {
 }
 
 function is_overlap_layers(voxels, pwidth, pheight, pdepth, layers) {
-  var x, y, z;
+  console.log('Verificando overlap...');
   for (var i = 0; i < voxels.length; ++i) {
-    if (voxels[i][0] < 0) return 1;
-    if (voxels[i][1] < 0) return 1;
-    if (voxels[i][2] < 0) return 1;
+    if (voxels[i][0] < 0) {
+      console.log('Voxel fuera de límites:', voxels[i]);
+      return 1;
+    }
+    if (voxels[i][1] < 0) {
+      console.log('Voxel fuera de límites:', voxels[i]);
+      return 1;
+    }
+    if (voxels[i][2] < 0) {
+      console.log('Voxel fuera de límites:', voxels[i]);
+      return 1;
+    }
 
-    if (voxels[i][0] >= pwidth) return 1;
-    if (voxels[i][1] >= pheight) return 1;
-    if (voxels[i][2] >= pdepth) return 1;
+    if (voxels[i][0] >= pwidth) {
+      console.log('Voxel fuera de límites:', voxels[i]);
+      return 1;
+    }
+    if (voxels[i][1] >= pheight) {
+      console.log('Voxel fuera de límites:', voxels[i]);
+      return 1;
+    }
+    if (voxels[i][2] >= pdepth) {
+      console.log('Voxel fuera de límites:', voxels[i]);
+      return 1;
+    }
 
-    x = voxels[i][0];
-    y = voxels[i][1];
-    z = voxels[i][2];
-    if (layers[z][y][x]) return 1;
+    var x = voxels[i][0];
+    var y = voxels[i][1];
+    var z = voxels[i][2];
+    if (layers[z][y][x]) {
+      console.log('Overlap detectado:', voxels[i]);
+      return 1;
+    }
   }
+  console.log('No hay overlap.');
   return 0;
 }
 
@@ -1369,6 +1391,7 @@ var EC = 0;
 (SC = 0), (XC = 0);
 
 function game_loop(canvas, ctx) {
+  console.log('Game loop...');
   END = new Date().getTime();
   ELAPSED = END - START;
   START = END;
@@ -1418,6 +1441,11 @@ function game_loop(canvas, ctx) {
   if (STATE.progress != prev_progress || STATE.pause_ended_flag) {
     STATE.pause_ended_flag = 0;
     render_frame(canvas, ctx);
+  }
+
+  if (STATE.render_piece_flag) {
+    console.log('Game loop: intentando descenso de pieza');
+    attempt_piece_descent();
   }
 
 }
@@ -1477,9 +1505,8 @@ function reset(canvas, ctx) {
 }
 
 function attempt_piece_descent() {
-  if (typeof console !== 'undefined' && console.log) {
-    console.log('attempt descent');
-  }
+  console.log('Attempt piece descent...');
+  console.log('Intentando descender pieza...');
   if (!STATE.piece) return false;
 
   var targetZ = STATE.new_z + 1;
@@ -1491,11 +1518,24 @@ function attempt_piece_descent() {
     STATE.new_matrix
   );
 
-  if (is_overlap_layers(projected, PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH, LAYERS)) {
+  if (targetZ >= PIT_DEPTH) {
+    console.log('Pieza ha llegado al fondo del pozo. Haciendo touchdown...');
     STATE.touchdown_flag = true;
-    if (typeof console !== 'undefined' && console.log) {
-      console.log('pieza tocando fondo');
-    }
+    return false;
+  }
+
+  var overlap = is_overlap_layers(
+    projected,
+    PIT_WIDTH,
+    PIT_HEIGHT,
+    PIT_DEPTH,
+    LAYERS
+  );
+  console.log('Overlap:', overlap);
+
+  if (overlap) {
+    console.log('Pieza no puede descender más. Haciendo touchdown...');
+    STATE.touchdown_flag = true;
     return false;
   }
 
