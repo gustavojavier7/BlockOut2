@@ -1391,6 +1391,7 @@ var EC = 0;
 (SC = 0), (XC = 0);
 
 function game_loop(canvas, ctx) {
+  console.log('Game loop...');
   END = new Date().getTime();
   ELAPSED = END - START;
   START = END;
@@ -1440,6 +1441,11 @@ function game_loop(canvas, ctx) {
   if (STATE.progress != prev_progress || STATE.pause_ended_flag) {
     STATE.pause_ended_flag = 0;
     render_frame(canvas, ctx);
+  }
+
+  if (STATE.render_piece_flag) {
+    console.log('Game loop: intentando descenso de pieza');
+    attempt_piece_descent();
   }
 
 }
@@ -1499,6 +1505,7 @@ function reset(canvas, ctx) {
 }
 
 function attempt_piece_descent() {
+  console.log('Attempt piece descent...');
   console.log('Intentando descender pieza...');
   if (!STATE.piece) return false;
 
