@@ -1518,6 +1518,12 @@ function attempt_piece_descent() {
     STATE.new_matrix
   );
 
+  if (targetZ >= PIT_DEPTH) {
+    console.log('Pieza ha llegado al fondo del pozo. Haciendo touchdown...');
+    STATE.touchdown_flag = true;
+    return false;
+  }
+
   var overlap = is_overlap_layers(
     projected,
     PIT_WIDTH,
