@@ -172,6 +172,7 @@ function evaluate_position(voxels) {
 function best_move() {
   if (typeof console !== 'undefined' && console.log) {
     console.log('[DemoBot] best_move called');
+    console.log('[DemoBot] Iniciando evaluación exhaustiva de posiciones válidas...');
   }
   var best = null;
   var bestScore = -1e9;
@@ -210,6 +211,15 @@ function best_move() {
       }
     }
   }
+  if (best) {
+    if (typeof console !== 'undefined' && console.log) {
+      console.log('[DemoBot] Evaluación completada - Mejor posición encontrada con score:', bestScore.toFixed(3));
+    }
+  } else {
+    if (typeof console !== 'undefined' && console.error) {
+      console.error('[DemoBot] Evaluación completada - NO se encontraron posiciones válidas');
+    }
+  }
   return best;
 }
 
@@ -218,7 +228,13 @@ function bot_place(canvas, ctx) {
     console.log('[DemoBot] bot_place called');
   }
   var mv = best_move();
-  if (!mv) { game_over(canvas, ctx); return; }
+  if (!mv) {
+    if (typeof console !== 'undefined' && console.error) {
+      console.error('[DemoBot] EVALUACIÓN FALLIDA - No se encontró ninguna posición válida para la pieza actual. Posibles causas: pozo lleno o pieza incompatible.');
+    }
+    game_over(canvas, ctx);
+    return;
+  }
 
   if (typeof console !== 'undefined' && console.log) {
     console.log('[DemoBot] destino calculado', mv.x, mv.y, mv.z, mv.angles);
