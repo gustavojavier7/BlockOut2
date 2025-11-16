@@ -242,6 +242,8 @@ function bot_place(canvas, ctx) {
   STATE.progress = 0;
 
   STATE.render_piece_flag = 1;
+  // La pieza pasa a estar controlada por el bot; se desactiva el descenso automático del loop principal.
+  STATE.manual_control = false;
   render_frame(canvas, ctx);
 
   // Intentar avanzar una fila hacia abajo para detectar el momento exacto del touchdown.
