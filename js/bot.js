@@ -7,6 +7,12 @@ var linesCoef = 0.7;
 var smoothCoef = -0.28;
 var holeCoef = -1.9;
 var peakCoef = -0.8;
+var cornerCoef = 0.0;
+var edgeCoef = 0.0;
+var distCoef = 0.001;
+
+var edgeMatrix = [];
+var lastCoefKey = null;
 
 const BOT_ROTATIONS = [
   [0, 0, 0],
@@ -19,6 +25,114 @@ const BOT_ROTATIONS = [
   [0, 90, 90], [0, 180, 90], [0, 270, 90],
   [0, 90, 270], [0, 180, 270], [0, 270, 270]
 ];
+
+function getDistanceForSet(x, y, z) {
+  // Distancia adaptada por set para aproximar la heurística original.
+  var set = typeof SET !== 'undefined' ? SET : 'basic';
+  switch (set) {
+    case 'flat':
+      return Math.sqrt(
+        (PIT_WIDTH - 1 - x) * (PIT_WIDTH - 1 - x) +
+          (PIT_HEIGHT - 1 - y) * (PIT_HEIGHT - 1 - y) +
+          z * z
+      );
+    case 'extended':
+      return Math.sqrt(x * x + y * y + z * z);
+    case 'basic':
+    default:
+      var cx = (PIT_WIDTH - 1) / 2;
+      var cy = (PIT_HEIGHT - 1) / 2;
+      return Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy) + z * z);
+  }
+}
+
+function initPitCoef() {
+  edgeMatrix = [];
+  var width = PIT_WIDTH;
+  var height = PIT_HEIGHT;
+  var depth = PIT_DEPTH;
+  var W = width - 1;
+  var H = height - 1;
+
+  for (var z = 0; z < depth; z++) {
+    edgeMatrix[z] = [];
+    for (var y = 0; y < height; y++) {
+      edgeMatrix[z][y] = [];
+      for (var x = 0; x < width; x++) {
+        edgeMatrix[z][y][x] = 0;
+      }
+    }
+  }
+
+  for (var k = 0; k < depth; k++) {
+    for (var i = 0; i < width; i++) {
+      edgeMatrix[k][0][i] = edgeCoef;
+      edgeMatrix[k][H][i] = edgeCoef;
+    }
+    for (var j = 1; j < H; j++) {
+      edgeMatrix[k][j][0] = edgeCoef;
+      edgeMatrix[k][j][W] = edgeCoef;
+    }
+    edgeMatrix[k][0][0] = cornerCoef;
+    edgeMatrix[k][0][W] = cornerCoef;
+    edgeMatrix[k][H][0] = cornerCoef;
+    edgeMatrix[k][H][W] = cornerCoef;
+  }
+
+  for (var dz = 0; dz < depth; dz++) {
+    for (var dy = 0; dy < height; dy++) {
+      for (var dx = 0; dx < width; dx++) {
+        edgeMatrix[dz][dy][dx] += distCoef * getDistanceForSet(dx, dy, dz);
+      }
+    }
+  }
+}
+
+function initCoef() {
+  puzzleCoef = 11.7;
+  linesCoef = 0.7;
+  smoothCoef = -0.28;
+  var set = typeof SET !== 'undefined' ? SET : 'basic';
+
+  switch (set) {
+    case 'flat':
+      holeCoef = -1.9;
+      peakCoef = -0.0;
+      cornerCoef = 0.0;
+      edgeCoef = 0.0;
+      break;
+    case 'extended':
+      if (PIT_WIDTH === 3 && PIT_HEIGHT === 3) {
+        cornerCoef = 2.8;
+        edgeCoef = 0.8;
+        peakCoef = -0.8;
+      } else {
+        cornerCoef = 0.0;
+        edgeCoef = 0.0;
+        peakCoef = -0.0;
+      }
+      holeCoef = -1.9;
+      break;
+    case 'basic':
+    default:
+      cornerCoef = 2.8;
+      edgeCoef = 0.8;
+      holeCoef = -1.1;
+      peakCoef = -0.81;
+      break;
+  }
+
+  distCoef = 0.001;
+  initPitCoef();
+  lastCoefKey = [set, PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH].join('x');
+}
+
+function ensureBotCoefficients() {
+  var key = [typeof SET !== 'undefined' ? SET : 'basic', PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH].join('x');
+  if (key !== lastCoefKey) {
+    initCoef();
+  }
+}
 
 function clone_layers(layers) {
   var result = [];
@@ -96,7 +210,7 @@ function smoothness_sqr(heights) {
         total += d * d;
       }
       if (y + 1 < height) {
-        var d = heights[y][x] - heights[y][x + 1];
+        var d = heights[y][x] - heights[y + 1][x];
         total += d * d;
       }
     }
@@ -151,22 +265,102 @@ function common_edges(voxels, layers) {
   return common / edges;
 }
 
+function getPitNote(voxels) {
+  ensureBotCoefficients();
+  if (!voxels || voxels.length === 0) {
+    return 0;
+  }
+
+  var note = 0;
+  for (var i = 0; i < voxels.length; i++) {
+    var vx = voxels[i][0];
+    var vy = voxels[i][1];
+    var vz = voxels[i][2];
+    var hasLayer = edgeMatrix[vz] && edgeMatrix[vz][vy];
+    if (!hasLayer || typeof edgeMatrix[vz][vy][vx] === 'undefined') {
+      continue;
+    }
+    note += edgeMatrix[vz][vy][vx];
+  }
+  return note / voxels.length;
+}
+
+function checkDeathZone(layers) {
+  // Penaliza ocupación en la zona donde aparecen piezas (capas superiores).
+  if (!layers || layers.length === 0) {
+    console.error('[DemoBot] checkDeathZone recibió capas vacías o inválidas.');
+    return 0;
+  }
+
+  var note = 0;
+  var width = PIT_WIDTH;
+  var height = PIT_HEIGHT;
+  var depth = PIT_DEPTH;
+  var topLayer = 0;
+
+  for (var y = 0; y < height; y++) {
+    for (var x = 0; x < width; x++) {
+      if (layers[topLayer][y][x] !== 0) {
+        note -= 2.5;
+      }
+    }
+  }
+
+  var maxZ = Math.min(2, depth);
+  var startY = Math.max(0, height - 2);
+  var startX = Math.max(0, width - 2);
+  for (var z = 0; z < maxZ; z++) {
+    for (var yy = startY; yy < height; yy++) {
+      for (var xx = startX; xx < width; xx++) {
+        if (layers[z][yy][xx] !== 0) {
+          note += z === 0 ? -25 : -5;
+        }
+      }
+    }
+  }
+
+  return note;
+}
+
 function evaluate_position(voxels) {
+  ensureBotCoefficients();
   var layers = clone_layers(LAYERS);
   var counts = COUNTS.slice();
   add_voxels(voxels, layers, counts);
+
   var lines = check_full_layers(layers, counts);
   var h = column_heights(layers);
   var holes = count_holes(layers, h);
   var sm = smoothness_sqr(h);
   var pk = peakness(h, -2);
   var ce = common_edges(voxels, LAYERS);
+  var pitNote = getPitNote(voxels) + checkDeathZone(layers);
+
   var linesNote = linesCoef * lines;
   var smoothNote = smoothCoef * sm;
   var peakNote = peakCoef * pk;
   var holeNote = holeCoef * holes;
   var commonNote = puzzleCoef * ce;
-  return linesNote + smoothNote + peakNote + holeNote + commonNote;
+  var total = linesNote + smoothNote + peakNote + holeNote + commonNote + pitNote;
+
+  if (typeof console !== 'undefined' && console.debug) {
+    console.debug(
+      '[DemoBot] Notas => pit: ' +
+        formatScore(pitNote) +
+        ' líneas: ' +
+        formatScore(linesNote) +
+        ' huecos: ' +
+        formatScore(holeNote) +
+        ' suavidad²: ' +
+        formatScore(smoothNote) +
+        ' picos: ' +
+        formatScore(peakNote) +
+        ' bordes comunes: ' +
+        formatScore(commonNote)
+    );
+  }
+
+  return total;
 }
 var debugEngine = typeof window !== 'undefined' ? window.DEBUG_ENGINE : null;
 var ROTATION_PREVIEW_DELAY = 300;
