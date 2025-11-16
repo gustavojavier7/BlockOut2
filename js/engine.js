@@ -45,20 +45,21 @@ var SPEED_MAP = {
 var AUTOFALL_DELAY = SPEED_MAP[SPEED];
 
 // animation
-
-var SLOW_ANIM_DURATION = 150;
-var MED_ANIM_DURATION = 70;
-var FAST_ANIM_DURATION = 10;
+// Nota: elevamos las duraciones para acompañar al nuevo FRAME_DELAY de 1s y evitar saltos.
+var SLOW_ANIM_DURATION = 4000; // 4 segundos para analizar con calma cada descenso
+var MED_ANIM_DURATION = 2000;  // 2 segundos (aprox. 2 cuadros a 1 FPS)
+var FAST_ANIM_DURATION = 1000; // 1 segundo: equivalente a un frame completo
 
 // ANIM_DURATION es la variable clave que controla la velocidad de la animación.
 var ANIM_DURATION = MED_ANIM_DURATION;
 
 // demo bot timing (in milliseconds)
-var DEMO_BOT_PLACE_DELAY = 50; // Aumentado ligeramente para mejor visualización
-var DEMO_BOT_TOUCHDOWN_DELAY = 100; // Reducido para acelerar el demo
+var DEMO_BOT_PLACE_DELAY = 1000; // Ajustado a 1s para seguir el nuevo frame rate lento
+var DEMO_BOT_TOUCHDOWN_DELAY = 500; // No se utiliza actualmente, se deja documentado
+var DEMO_INIT_BOT_DELAY = 1000; // Garantiza que el bot espere antes de la primera pieza
 
 
-var FRAME_DELAY = 10;
+var FRAME_DELAY = 1000; // 1 FPS: cada frame dura 1 segundo para observar la desaparición
 
 var DELTA = 1;
 var DELTA_ANGLE = Math.PI / 2;
@@ -1329,8 +1330,14 @@ function init_game_keys(canvas, ctx) {
 }
 
 function end_game(canvas, ctx) {
-    clearTimeout(ID1);
-    clearTimeout(ID2);
+    if (ID1 !== -1) {
+      clearInterval(ID1);
+      ID1 = -1;
+    }
+    if (ID2 !== -1) {
+      clearTimeout(ID2);
+      ID2 = -1;
+    }
     render_pit(canvas, ctx);
     
     // Mostramos mensaje de Game Over en la consola
@@ -1348,6 +1355,51 @@ function end_game(canvas, ctx) {
 
 function handle_key(e, canvas, ctx) {
     // Eliminada: No se procesan teclas
+}
+
+function start_main_loop(canvas, ctx) {
+  if (!canvas || !ctx) {
+    throw new Error('start_main_loop requiere un canvas y contexto válidos');
+  }
+
+  if (ID1 !== -1) {
+    clearInterval(ID1);
+    ID1 = -1;
+  }
+
+  START = new Date().getTime();
+  ID1 = setInterval(function () {
+    game_loop(canvas, ctx);
+  }, FRAME_DELAY);
+
+  console.log('[SYNC] game_loop iniciado con ID1 =', ID1);
+}
+
+function schedule_bot_action(canvas, ctx, delay, onAfter) {
+  if (!canvas || !ctx) {
+    throw new Error('schedule_bot_action requiere un canvas y contexto válidos');
+  }
+
+  var safeDelay = typeof delay === 'number' && delay >= 0 ? delay : 0;
+
+  if (ID2 !== -1) {
+    clearTimeout(ID2);
+    ID2 = -1;
+  }
+
+  ID2 = setTimeout(function () {
+    try {
+      bot_place(canvas, ctx);
+    } catch (error) {
+      console.error('[SYNC] Error al ejecutar bot_place:', error);
+      throw error;
+    } finally {
+      ID2 = -1;
+      if (typeof onAfter === 'function') onAfter();
+    }
+  }, safeDelay);
+
+  console.log('[SYNC] Bot programado en', safeDelay, 'ms (ID2 =', ID2, ')');
 }
 
 function play_game(canvas, ctx, start_handler) {
@@ -1372,19 +1424,20 @@ function play_game(canvas, ctx, start_handler) {
   STATE.refresh_layers_flag = 1;
   reset(canvas, ctx);
   
-  // Llamamos al bot para el primer movimiento con un pequeño retraso
-  if (DEMO_MODE) {
-    setTimeout(function () {
-      bot_place(canvas, ctx);
-    }, 20);
-  }
-  
   STATE.refresh_layers_flag = 0;
   STATE.render_shadow_flag = 0;
+  console.log('[SYNC] play_game invocado. DEMO_MODE =', DEMO_MODE);
 
-    START = new Date().getTime();
-    ID1 = setInterval(function () { game_loop(canvas, ctx);}, FRAME_DELAY);
-    // ID2 (autofall) se maneja ahora solo por el bot.
+  if (DEMO_MODE) {
+    schedule_bot_action(canvas, ctx, DEMO_INIT_BOT_DELAY, function () {
+      console.log('[SYNC] Bot inicial listo, arrancando game_loop.');
+      start_main_loop(canvas, ctx);
+    });
+  } else {
+    start_main_loop(canvas, ctx);
+  }
+
+  // ID2 (autofall) se maneja ahora solo por el bot.
 }
 
 // fps counter globals
@@ -1574,9 +1627,7 @@ function touchdown() {
 function new_piece(canvas, ctx) {
   reset(canvas, ctx);
   if (DEMO_MODE) {
-    setTimeout(function () {
-      bot_place(canvas, ctx);
-    }, DEMO_BOT_PLACE_DELAY);
+    schedule_bot_action(canvas, ctx, DEMO_BOT_PLACE_DELAY);
   }
 }
 
@@ -1590,8 +1641,14 @@ function game_over(canvas, ctx) {
   }
 
   // Modo normal (si existiera)
-  clearTimeout(ID1);
-  clearTimeout(ID2);
+  if (ID1 !== -1) {
+    clearInterval(ID1);
+    ID1 = -1;
+  }
+  if (ID2 !== -1) {
+    clearTimeout(ID2);
+    ID2 = -1;
+  }
   render_pit(canvas, ctx);
   end_game(canvas, ctx);
   DEMO_MODE = false;
