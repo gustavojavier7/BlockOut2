@@ -242,7 +242,8 @@ if (debugNamespace) {
 }
 
 // pieces
-var SET = 'basic';
+// Preferimos el set "flat" por simplicidad y compatibilidad con pozos 2D.
+var SET = 'flat';
 
 // piece shapes
 var TEMPLATES = {
@@ -1902,6 +1903,8 @@ function refresh_score() {
 function save_settings() {
   // Guarda las configuraciones PIT en cookies
   if (typeof $.cookie === 'function') {
+      var enforcedSet = 'flat';
+      SET = enforcedSet;
       var tmp = SET + ':' + PIT_WIDTH + ':' + PIT_HEIGHT + ':' + PIT_DEPTH + ':' + SPEED;
       $.cookie('co_settings', tmp, { expires: 10000 });
   }
@@ -1909,13 +1912,13 @@ function save_settings() {
 
 function load_settings() {
   // Carga las configuraciones PIT desde cookies
+  // Nota: Forzamos el set "flat" para evitar que una cookie previa reintroduzca otros conjuntos.
+  SET = 'flat';
   if (typeof $.cookie === 'function') {
       var tmp = $.cookie('co_settings');
       if (tmp) {
           var chunks = tmp.split(':');
-          var set = chunks[0];
-          if (TEMPLATES[set] != undefined) SET = set;
-
+          // Ignoramos el set almacenado y mantenemos "flat" como valor forzado.
           PIT_WIDTH = parseInt(chunks[1]);
           PIT_HEIGHT = parseInt(chunks[2]);
           PIT_DEPTH = parseInt(chunks[3]);
