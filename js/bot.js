@@ -168,101 +168,268 @@ function evaluate_position(voxels) {
   var commonNote = puzzleCoef * ce;
   return linesNote + smoothNote + peakNote + holeNote + commonNote;
 }
+var debugEngine = typeof window !== 'undefined' ? window.DEBUG_ENGINE : null;
+var ROTATION_PREVIEW_DELAY = 300;
+var POSITION_PREVIEW_DELAY = 200;
+var BEST_BONUS_DELAY = 150;
+var FINAL_DESTINATION_DELAY = 500;
 
-function best_move() {
-  if (typeof console !== 'undefined' && console.log) {
-    console.log('[DemoBot] best_move called');
-    console.log('[DemoBot] Iniciando evaluación exhaustiva de posiciones válidas...');
+function sleep(ms) {
+  return new Promise(function (resolve) {
+    setTimeout(resolve, ms);
+  });
+}
+
+function cloneArray(arr) {
+  return arr ? arr.slice() : null;
+}
+
+function cloneMatrixOrIdentity(matrix) {
+  return cloneArray(matrix) || [1, 0, 0, 0, 1, 0, 0, 0, 1];
+}
+
+function ensureEnvironment(canvas, ctx) {
+  if (debugEngine) {
+    var resolvedCanvas = debugEngine.ensureCanvas(canvas);
+    var resolvedCtx = debugEngine.ensureContext(resolvedCanvas, ctx);
+    debugEngine.rememberCanvas(resolvedCanvas, resolvedCtx);
+    return { canvas: resolvedCanvas, ctx: resolvedCtx };
   }
-  var best = null;
+
+  if (!canvas || !ctx) {
+    throw new Error('[DemoBot] No hay canvas/contexto disponible para el bot.');
+  }
+
+  return { canvas: canvas, ctx: ctx };
+}
+
+function simulateDrop(x, y, matrix) {
+  var z = 0;
+  var voxels = project_voxels(STATE.piece, x, y, z, matrix);
+  if (is_overlap_layers(voxels, PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH, LAYERS)) {
+    return null;
+  }
+
+  while (true) {
+    var next = project_voxels(STATE.piece, x, y, z + 1, matrix);
+    if (!is_overlap_layers(next, PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH, LAYERS)) {
+      z += 1;
+      voxels = next;
+      if (z >= PIT_DEPTH - 1) {
+        break;
+      }
+    } else {
+      break;
+    }
+  }
+
+  return {
+    x: x,
+    y: y,
+    z: z,
+    voxels: voxels,
+  };
+}
+
+function formatScore(value) {
+  return (typeof value === 'number' ? value : 0).toFixed(3);
+}
+
+function logRotation(index, total, rotation, x, y) {
+  if (typeof console !== 'undefined' && console.log) {
+    console.log(
+      '[DemoBot] 🔄 Animando rotación ' +
+        index +
+        '/' +
+        total +
+        ': (' +
+        rotation.join(',') +
+        ') en posición (' +
+        x +
+        ', ' +
+        y +
+        ')'
+    );
+  }
+}
+
+async function showRotationPreview(rotationIndex, rotationDeg, matrix, anglesRad, canvas, ctx) {
+  if (!debugEngine) {
+    return;
+  }
+  logRotation(rotationIndex, BOT_ROTATIONS.length, rotationDeg, STATE.current_x, STATE.current_y);
+  debugEngine.showPreview(
+    {
+      x: STATE.current_x,
+      y: STATE.current_y,
+      z: STATE.current_z,
+      matrix: cloneArray(matrix),
+      angles: cloneArray(anglesRad),
+    },
+    canvas,
+    ctx
+  );
+  await sleep(ROTATION_PREVIEW_DELAY);
+}
+
+async function showTestPosition(canvas, ctx, dropData, matrix, anglesRad, score, isBest) {
+  var baseMsg =
+    '[DemoBot] 📍 Prueba - Posición (' +
+    dropData.x +
+    ', ' +
+    dropData.y +
+    ', ' +
+    dropData.z +
+    ') Score: ' +
+    formatScore(score);
+  console.log(baseMsg);
+  if (isBest) {
+    console.log(
+      '[DemoBot] 🔥 MEJOR - Posición (' +
+        dropData.x +
+        ', ' +
+        dropData.y +
+        ', ' +
+        dropData.z +
+        ') Score: ' +
+        formatScore(score)
+    );
+  }
+
+  if (debugEngine) {
+    debugEngine.showPreview(
+      {
+        x: dropData.x,
+        y: dropData.y,
+        z: dropData.z,
+        matrix: cloneArray(matrix),
+        angles: cloneArray(anglesRad),
+      },
+      canvas,
+      ctx
+    );
+    await sleep(isBest ? POSITION_PREVIEW_DELAY + BEST_BONUS_DELAY : POSITION_PREVIEW_DELAY);
+  }
+}
+
+function withSnapshot(canvas, ctx, runner) {
+  if (!debugEngine) {
+    return runner();
+  }
+  var snapshot = debugEngine.capturePieceState();
+  return runner().finally(function () {
+    debugEngine.restorePieceState(snapshot, canvas, ctx);
+  });
+}
+
+async function evaluateBestMove(canvas, ctx) {
+  console.log('[DemoBot] 🎯 Iniciando evaluación exhaustiva con animaciones visibles...');
   var bestScore = -1e9;
+  var best = null;
+  var tested = 0;
+
   for (var r = 0; r < BOT_ROTATIONS.length; r++) {
-    var ang = BOT_ROTATIONS[r].map(function (a) { return a * Math.PI / 180; });
-    var mat = get_combined_rotmatrix(ang);
-    var bbvox = project_voxels(STATE.piece, 0, 0, 0, mat);
+    var rotationDeg = BOT_ROTATIONS[r];
+    var anglesRad = rotationDeg.map(function (deg) {
+      return (deg * Math.PI) / 180;
+    });
+    var matrix = get_combined_rotmatrix(anglesRad);
+
+    await showRotationPreview(r + 1, rotationDeg, matrix, anglesRad, canvas, ctx);
+    var bbvox = project_voxels(STATE.piece, 0, 0, 0, matrix);
     var bb = bbox_voxels(bbvox);
-    
-    // Iteramos sobre las coordenadas X e Y
+
     for (var x = -bb.x[0]; x <= PIT_WIDTH - 1 - bb.x[1]; x++) {
       for (var y = -bb.y[0]; y <= PIT_HEIGHT - 1 - bb.y[1]; y++) {
-        var z = 0;
-        var vox = project_voxels(STATE.piece, x, y, z, mat);
-        
-        // Verificamos si la pieza está en el límite superior
-        if (is_overlap_layers(vox, PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH, LAYERS))
+        var dropData = simulateDrop(x, y, matrix);
+        if (!dropData) {
           continue;
-        
-        // Simular la caída hasta el fondo
-        while (true) {
-          var nvox = project_voxels(STATE.piece, x, y, z + 1, mat);
-          if (!is_overlap_layers(nvox, PIT_WIDTH, PIT_HEIGHT, PIT_DEPTH, LAYERS)) {
-            z++;
-            vox = nvox;
-          } else break;
         }
-        
-        // Evaluar la posición final
-        var score = evaluate_position(vox);
-        if (score > bestScore) {
+        tested += 1;
+        var score = evaluate_position(dropData.voxels);
+        var isBest = score > bestScore;
+        if (isBest) {
           bestScore = score;
-          // *** CORRECCIÓN CRUCIAL: Devolver los ángulos para la animación ***
-          best = { x: x, y: y, z: z, matrix: mat, angles: ang };
+          best = {
+            x: dropData.x,
+            y: dropData.y,
+            z: dropData.z,
+            matrix: cloneArray(matrix),
+            angles: cloneArray(anglesRad),
+          };
         }
+        await showTestPosition(canvas, ctx, dropData, matrix, anglesRad, score, isBest);
       }
     }
   }
+
   if (best) {
-    if (typeof console !== 'undefined' && console.log) {
-      console.log('[DemoBot] Evaluación completada - Mejor posición encontrada con score:', bestScore.toFixed(3));
-    }
+    console.log(
+      '[DemoBot] ✅ Evaluación completada - Probadas ' +
+        tested +
+        ' posiciones. Mejor score: ' +
+        formatScore(bestScore)
+    );
   } else {
-    if (typeof console !== 'undefined' && console.error) {
-      console.error('[DemoBot] Evaluación completada - NO se encontraron posiciones válidas');
-    }
+    console.error('[DemoBot] Evaluación completada - NO se encontraron posiciones válidas');
   }
+
   return best;
 }
 
-function bot_place(canvas, ctx) {
-  if (typeof console !== 'undefined' && console.log) {
-    console.log('[DemoBot] bot_place called');
-  }
-  var mv = best_move();
+function formatAnglesInDegrees(anglesRad) {
+  return (anglesRad || [])
+    .map(function (angle) {
+      return Math.round((angle * 180) / Math.PI);
+    })
+    .join(', ');
+}
+
+window.best_move = function (canvas, ctx) {
+  var env = ensureEnvironment(canvas, ctx);
+  return withSnapshot(env.canvas, env.ctx, function () {
+    return evaluateBestMove(env.canvas, env.ctx);
+  });
+};
+
+window.bot_place = async function (canvas, ctx) {
+  var env = ensureEnvironment(canvas, ctx);
+  console.log('[DemoBot] bot_place called');
+  var mv = await window.best_move(env.canvas, env.ctx);
   if (!mv) {
-    if (typeof console !== 'undefined' && console.error) {
-      console.error('[DemoBot] EVALUACIÓN FALLIDA - No se encontró ninguna posición válida para la pieza actual. Posibles causas: pozo lleno o pieza incompatible.');
-    }
-    game_over(canvas, ctx);
+    console.error('[DemoBot] EVALUACIÓN FALLIDA - No se encontró ninguna posición válida para la pieza actual. Posibles causas: pozo lleno o pieza incompatible.');
+    game_over(env.canvas, env.ctx);
     return;
   }
 
-  if (typeof console !== 'undefined' && console.log) {
-    console.log('[DemoBot] destino calculado', mv.x, mv.y, mv.z, mv.angles);
-  }
-  
-  // Establecer la posición calculada por el bot como el nuevo destino.
+  console.log(
+    '[DemoBot] 🎯 Destino final calculado: (' +
+      mv.x +
+      ', ' +
+      mv.y +
+      ', ' +
+      mv.z +
+      ') con ángulos [' +
+      formatAnglesInDegrees(mv.angles) +
+      ']°'
+  );
+  await sleep(FINAL_DESTINATION_DELAY);
+
   STATE.new_x = mv.x;
   STATE.new_y = mv.y;
   STATE.new_z = mv.z;
-  STATE.new_matrix = mv.matrix;
-  // *** CORRECCIÓN CRUCIAL: Asignar los nuevos ángulos para la animación de rotación ***
-  STATE.new_angles = mv.angles;
-  
-  // Establecer el inicio de la animación en la posición actual de la pieza (la posición de generación, centrada)
+  STATE.new_matrix = cloneMatrixOrIdentity(mv.matrix);
+  STATE.new_angles = cloneArray(mv.angles);
+
   STATE.start_x = STATE.current_x;
   STATE.start_y = STATE.current_y;
   STATE.start_z = STATE.current_z;
-  STATE.start_matrix = STATE.current_matrix;
-  
-  // Reiniciar el progreso para iniciar la animación en game_loop
+  STATE.start_matrix = cloneMatrixOrIdentity(STATE.current_matrix);
+
   STATE.progress = 0;
-
   STATE.render_piece_flag = 1;
-  // La pieza pasa a estar controlada por el bot; se desactiva el descenso automático del loop principal.
   STATE.manual_control = false;
-  render_frame(canvas, ctx);
+  render_frame(env.canvas, env.ctx);
 
-  // Intentar avanzar una fila hacia abajo para detectar el momento exacto del touchdown.
   attempt_piece_descent();
-
-}
+};
