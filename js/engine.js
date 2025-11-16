@@ -112,6 +112,31 @@ function ensureContext(canvas, ctx) {
   return resolved;
 }
 
+function ensurePitCache(canvas) {
+  var resolvedCanvas = ensureCanvas(canvas);
+  if (typeof document === 'undefined') {
+    throw new Error('No es posible crear la caché del pozo sin acceso al DOM.');
+  }
+
+  var cache = CACHE_PIT;
+  var needsCreation = !cache;
+  if (!cache) {
+    cache = document.createElement('canvas');
+    cache.style.display = 'none';
+    document.body.appendChild(cache);
+  }
+
+  var needsResize =
+    cache.width !== resolvedCanvas.width || cache.height !== resolvedCanvas.height;
+  if (needsCreation || needsResize) {
+    cache.width = resolvedCanvas.width;
+    cache.height = resolvedCanvas.height;
+  }
+
+  CACHE_PIT = cache;
+  return cache;
+}
+
 function cloneArray(source) {
   return source ? source.slice() : null;
 }
@@ -217,7 +242,8 @@ if (debugNamespace) {
 }
 
 // pieces
-var SET = 'basic';
+// Preferimos el set "flat" por simplicidad y compatibilidad con pozos 2D.
+var SET = 'flat';
 
 // piece shapes
 var TEMPLATES = {
@@ -762,7 +788,8 @@ function point3d(ctx, cwidth, cheight, width, height, s, color, radius) {
 }
 
 function draw_pit(canvas, ctx, width, height, depth, refresh_flag) {
-  if (CACHE_PIT == 0 || refresh_flag) {
+  var needsRefresh = !CACHE_PIT || refresh_flag;
+  if (needsRefresh) {
 
     // colors
     var color1 = '#00ff0f'; // gradient start
@@ -872,18 +899,11 @@ function draw_pit(canvas, ctx, width, height, depth, refresh_flag) {
     }
     ctx.stroke();
 
-    if (CACHE_PIT == 0) {
-      // Usamos el DOM estándar, no jQuery
-      var cache = document.createElement('canvas');
-      cache.style.display = 'none';
-      document.body.appendChild(cache);
-      cache.width = cwidth;
-      cache.height = cheight;
-      CACHE_PIT = cache;
-    }
-    CACHE_PIT.getContext('2d').drawImage(canvas, 0, 0);
+    var cacheCanvas = ensurePitCache(canvas);
+    cacheCanvas.getContext('2d').drawImage(canvas, 0, 0);
   } else {
-    ctx.drawImage(CACHE_PIT, 0, 0);
+    var cache = ensurePitCache(canvas);
+    ctx.drawImage(cache, 0, 0);
   }
 }
 
@@ -1883,6 +1903,8 @@ function refresh_score() {
 function save_settings() {
   // Guarda las configuraciones PIT en cookies
   if (typeof $.cookie === 'function') {
+      var enforcedSet = 'flat';
+      SET = enforcedSet;
       var tmp = SET + ':' + PIT_WIDTH + ':' + PIT_HEIGHT + ':' + PIT_DEPTH + ':' + SPEED;
       $.cookie('co_settings', tmp, { expires: 10000 });
   }
@@ -1890,13 +1912,13 @@ function save_settings() {
 
 function load_settings() {
   // Carga las configuraciones PIT desde cookies
+  // Nota: Forzamos el set "flat" para evitar que una cookie previa reintroduzca otros conjuntos.
+  SET = 'flat';
   if (typeof $.cookie === 'function') {
       var tmp = $.cookie('co_settings');
       if (tmp) {
           var chunks = tmp.split(':');
-          var set = chunks[0];
-          if (TEMPLATES[set] != undefined) SET = set;
-
+          // Ignoramos el set almacenado y mantenemos "flat" como valor forzado.
           PIT_WIDTH = parseInt(chunks[1]);
           PIT_HEIGHT = parseInt(chunks[2]);
           PIT_DEPTH = parseInt(chunks[3]);
@@ -2090,7 +2112,10 @@ function change_pit(el, canvas, ctx) {
   init_colors(PIT_DEPTH);
 
   reset_pit(3);
-  render_pit(canvas, ctx);
+  var resolvedCanvas = ensureCanvas(canvas);
+  var resolvedCtx = ensureContext(resolvedCanvas, ctx);
+  render_pit(resolvedCanvas, resolvedCtx);
+  ensurePitCache(resolvedCanvas);
 
   reset_allowed();
 }
