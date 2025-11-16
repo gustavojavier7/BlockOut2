@@ -283,7 +283,11 @@ var ID1 = -1,
   ID2 = -1;
 
 // game state
-var STATE = { setkeys: 0 };
+var STATE = {
+  setkeys: 0,
+  // Flag para identificar si la pieza actual sigue bajo control manual.
+  manual_control: true,
+};
 
 // pause
 var PAUSE_ANIM = 1;
@@ -1444,8 +1448,11 @@ function game_loop(canvas, ctx) {
   }
 
   if (STATE.render_piece_flag) {
-    console.log('Game loop: intentando descenso de pieza');
-    attempt_piece_descent();
+    var piezaBajoControlManual = !DEMO_MODE || STATE.manual_control;
+    if (piezaBajoControlManual) {
+      console.log('Game loop: intentando descenso de pieza');
+      attempt_piece_descent();
+    }
   }
 
 }
@@ -1499,6 +1506,8 @@ function reset(canvas, ctx) {
 
   STATE.render_piece_flag = 1;
   STATE.touchdown_flag = 0;
+  // En cada aparición, la pieza comienza en control manual hasta que el bot tome el control.
+  STATE.manual_control = true;
 
 
   render_frame(canvas, ctx);
