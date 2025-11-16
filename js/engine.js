@@ -1622,9 +1622,15 @@ function touchdown() {
   refresh_score();
 
   refresh_column();
+  if (typeof console !== 'undefined' && console.log) {
+    console.log('[SYNC] Touchdown completado exitosamente - Pieza colocada en posición final');
+  }
 }
 
 function new_piece(canvas, ctx) {
+  if (typeof console !== 'undefined' && console.log) {
+    console.log('[SYNC] Nueva pieza generada - Iniciando evaluación del bot...');
+  }
   reset(canvas, ctx);
   if (DEMO_MODE) {
     schedule_bot_action(canvas, ctx, DEMO_BOT_PLACE_DELAY);
