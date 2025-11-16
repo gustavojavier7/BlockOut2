@@ -45,21 +45,21 @@ var SPEED_MAP = {
 var AUTOFALL_DELAY = SPEED_MAP[SPEED];
 
 // animation
-
-var SLOW_ANIM_DURATION = 150;
-var MED_ANIM_DURATION = 70;
-var FAST_ANIM_DURATION = 10;
+// Nota: elevamos las duraciones para acompañar al nuevo FRAME_DELAY de 1s y evitar saltos.
+var SLOW_ANIM_DURATION = 4000; // 4 segundos para analizar con calma cada descenso
+var MED_ANIM_DURATION = 2000;  // 2 segundos (aprox. 2 cuadros a 1 FPS)
+var FAST_ANIM_DURATION = 1000; // 1 segundo: equivalente a un frame completo
 
 // ANIM_DURATION es la variable clave que controla la velocidad de la animación.
 var ANIM_DURATION = MED_ANIM_DURATION;
 
 // demo bot timing (in milliseconds)
-var DEMO_BOT_PLACE_DELAY = 50; // Aumentado ligeramente para mejor visualización
-var DEMO_BOT_TOUCHDOWN_DELAY = 100; // Reducido para acelerar el demo
-var DEMO_INIT_BOT_DELAY = 200; // Sincronización inicial para evitar condiciones de carrera
+var DEMO_BOT_PLACE_DELAY = 1000; // Ajustado a 1s para seguir el nuevo frame rate lento
+var DEMO_BOT_TOUCHDOWN_DELAY = 500; // No se utiliza actualmente, se deja documentado
+var DEMO_INIT_BOT_DELAY = 1000; // Garantiza que el bot espere antes de la primera pieza
 
 
-var FRAME_DELAY = 10;
+var FRAME_DELAY = 1000; // 1 FPS: cada frame dura 1 segundo para observar la desaparición
 
 var DELTA = 1;
 var DELTA_ANGLE = Math.PI / 2;
