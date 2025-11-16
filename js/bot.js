@@ -239,11 +239,11 @@ function bot_place(canvas, ctx) {
   STATE.start_matrix = STATE.current_matrix;
   
   // Reiniciar el progreso para iniciar la animación en game_loop
-  STATE.progress = 0; 
-  
+  STATE.progress = 0;
+
   STATE.render_piece_flag = 1;
   render_frame(canvas, ctx);
-  
+
   // Intentar avanzar una fila hacia abajo para detectar el momento exacto del touchdown.
   attempt_piece_descent();
 
