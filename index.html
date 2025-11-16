@@ -116,33 +116,87 @@
 			console.log("Velocidad de animación cambiada a:", speed);
 		}
 
-		function startDemo() {
-			var canvas = $('#screen').get(0);
-			var ctx = canvas.getContext('2d');
+                function startDemo() {
+                        var canvas = $('#screen').get(0);
+                        if (!canvas) {
+                                console.error('[DEMO] No se encontró el canvas principal, abortando startDemo.');
+                                return;
+                        }
+                        var ctx = canvas.getContext('2d');
+                        if (!ctx) {
+                                console.error('[DEMO] No se pudo obtener el contexto 2D, abortando startDemo.');
+                                return;
+                        }
 
-			// Si ya hay un loop corriendo, que termine primero
-			try { game_over(canvas, ctx); } catch (e) {}
+                        console.log('[DEMO] startDemo solicitado. DEMO_MODE actual =', DEMO_MODE);
 
-			DEMO_MODE = true;
-			$('#demoStartBtn').addClass('on');
-			$('#demoStopBtn').removeClass('on');
+                        if (typeof ID1 !== 'undefined' && ID1 !== -1) {
+                                console.log('[DEMO] Deteniendo loop previo con ID1 =', ID1);
+                                clearInterval(ID1);
+                                ID1 = -1;
+                        }
+                        if (typeof ID2 !== 'undefined' && ID2 !== -1) {
+                                console.log('[DEMO] Cancelando acción del bot pendiente con ID2 =', ID2);
+                                clearTimeout(ID2);
+                                ID2 = -1;
+                        }
 
-			// Arranca el juego directamente en modo DEMO
-			// Nota: play_game llama internamente a new_piece y new_piece llama a bot_place
-			play_game(canvas, ctx, function () {});
-		}
+                        if (DEMO_MODE) {
+                                console.warn('[DEMO] startDemo fue invocado mientras DEMO_MODE ya estaba activo. Se reiniciará el estado igualmente.');
+                        }
 
-		function stopDemo() {
-			var canvas = $('#screen').get(0);
-			var ctx = canvas.getContext('2d');
+                        DEMO_MODE = true;
+                        $('#demoStartBtn').addClass('on');
+                        $('#demoStopBtn').removeClass('on');
 
-			DEMO_MODE = false;
-			$('#demoStartBtn').removeClass('on');
-			$('#demoStopBtn').addClass('on');
+                        try {
+                                play_game(canvas, ctx, function () {});
+                                console.log('[DEMO] DEMO iniciado correctamente.');
+                        } catch (error) {
+                                console.error('[DEMO] Error al iniciar el DEMO:', error);
+                                DEMO_MODE = false;
+                                $('#demoStartBtn').removeClass('on');
+                                $('#demoStopBtn').addClass('on');
+                                throw error;
+                        }
+                }
 
-			// Forzamos fin de juego (esto llama a end_game en engine.js)
-			game_over(canvas, ctx);
-		}
+                function stopDemo() {
+                        var canvas = $('#screen').get(0);
+                        if (!canvas) {
+                                console.error('[DEMO] No se encontró el canvas principal, stopDemo no puede continuar.');
+                                return;
+                        }
+                        var ctx = canvas.getContext('2d');
+                        if (!ctx) {
+                                console.error('[DEMO] No se pudo obtener el contexto 2D, stopDemo no puede continuar.');
+                                return;
+                        }
+
+                        console.log('[DEMO] stopDemo solicitado. DEMO_MODE actual =', DEMO_MODE);
+
+                        DEMO_MODE = false;
+                        $('#demoStartBtn').removeClass('on');
+                        $('#demoStopBtn').addClass('on');
+
+                        if (typeof ID1 !== 'undefined' && ID1 !== -1) {
+                                console.log('[DEMO] Limpiando loop activo con ID1 =', ID1);
+                                clearInterval(ID1);
+                                ID1 = -1;
+                        }
+                        if (typeof ID2 !== 'undefined' && ID2 !== -1) {
+                                console.log('[DEMO] Cancelando acción del bot pendiente con ID2 =', ID2);
+                                clearTimeout(ID2);
+                                ID2 = -1;
+                        }
+
+                        try {
+                                game_over(canvas, ctx);
+                                console.log('[DEMO] DEMO detenido y estado limpiado correctamente.');
+                        } catch (error) {
+                                console.error('[DEMO] Error al detener el DEMO:', error);
+                        }
+                }
 
 		// Hook de inicio: esperar a que todo tu $(document).ready del engine se ejecute
 		$(function () {
