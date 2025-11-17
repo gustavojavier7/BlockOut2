@@ -225,12 +225,15 @@ function showPreview(preview, canvas, ctx) {
 }
 
 function ensureManualFlag() {
+  // Fallar rápido si el estado global no está listo, para evitar errores silenciosos.
+  if (typeof STATE === 'undefined' || STATE === null) {
+    throw new Error('[STATE] Objeto STATE no inicializado para manual_control.');
+  }
+
   if (typeof STATE.manual_control === 'undefined') {
     STATE.manual_control = true;
   }
 }
-
-ensureManualFlag();
 
 if (debugNamespace) {
   debugNamespace.rememberCanvas = rememberCanvas;
@@ -463,8 +466,16 @@ var ID1 = -1,
 
 // game state
 var STATE = {
+  // Bandera para alternar entre control manual y automático.
+  manual_control: true,
+  // Uso interno de detección de teclas.
   setkeys: 0,
+  // Evitamos estados nulos al pausar/reanudar.
+  paused: 0,
 };
+
+// Aseguramos que el estado inicial contenga las banderas mínimas antes de iniciar el motor.
+ensureManualFlag();
 
 // pause
 var PAUSE_ANIM = 1;
