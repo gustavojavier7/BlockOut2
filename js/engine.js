@@ -73,6 +73,18 @@ var debugNamespace =
     ? (window.DEBUG_ENGINE = window.DEBUG_ENGINE || {})
     : {};
 
+// Estado global inicializado lo más temprano posible para evitar lecturas de
+// undefined en funciones posteriores. Usamos let para prevenir hoisting de la
+// inicialización y poder reestablecer el objeto si fuera necesario.
+let STATE = {
+  // Bandera para alternar entre control manual y automático.
+  manual_control: true,
+  // Uso interno de detección de teclas.
+  setkeys: 0,
+  // Evitamos estados nulos al pausar/reanudar.
+  paused: 0,
+};
+
 function rememberCanvas(canvas, ctx) {
   if (canvas) {
     storedCanvas = canvas;
@@ -225,11 +237,30 @@ function showPreview(preview, canvas, ctx) {
 }
 
 function ensureManualFlag() {
+  // Reparamos el estado global de manera defensiva para evitar lecturas de undefined.
+  if (typeof STATE === 'undefined' || STATE === null) {
+    STATE = {
+      manual_control: true,
+      setkeys: 0,
+      paused: 0,
+    };
+    return;
+  }
+
   if (typeof STATE.manual_control === 'undefined') {
     STATE.manual_control = true;
   }
+
+  if (typeof STATE.setkeys === 'undefined') {
+    STATE.setkeys = 0;
+  }
+
+  if (typeof STATE.paused === 'undefined') {
+    STATE.paused = 0;
+  }
 }
 
+// Aseguramos que el estado inicial contenga las banderas mínimas antes de iniciar el motor.
 ensureManualFlag();
 
 if (debugNamespace) {
@@ -460,11 +491,6 @@ var CACHE_PIT = 0,
 var START, END, ELAPSED;
 var ID1 = -1,
   ID2 = -1;
-
-// game state
-var STATE = {
-  setkeys: 0,
-};
 
 // pause
 var PAUSE_ANIM = 1;
