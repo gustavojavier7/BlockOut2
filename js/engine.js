@@ -85,6 +85,14 @@ let STATE = {
   paused: 0,
 };
 
+// Al trabajar con proyecciones isométricas, los decimales generan artefactos
+// (superposición o gaps) si se redondean en múltiples pasos. Este helper
+// centraliza el redondeo hacia abajo para anclar todos los cálculos a la misma
+// cuadrícula y reducir sangrados subpíxel.
+function snapPixel(value) {
+  return Math.floor(value + 1e-4);
+}
+
 function rememberCanvas(canvas, ctx) {
   if (canvas) {
     storedCanvas = canvas;
@@ -120,6 +128,10 @@ function ensureContext(canvas, ctx) {
   if (!resolved) {
     throw new Error('[DEBUG] No se pudo obtener el contexto 2D para el motor visual.');
   }
+
+  // Fast fail visual: desactivamos suavizado para evitar bleed en bordes y
+  // detectar rápidamente desalineaciones en la grilla isométrica.
+  resolved.imageSmoothingEnabled = false;
   rememberCanvas(resolvedCanvas, resolved);
   return resolved;
 }
@@ -662,8 +674,10 @@ function project(cwidth, cheight, width, height, x, y, z) {
   var xsize1 = (cwidth - 2 * offsetx1) / width;
   var ysize1 = (cheight - 2 * offsety1) / height;
 
-  var px = Math.round(offsetx1 + x * xsize1);
-  var py = Math.round(offsety1 + y * ysize1);
+  // Usamos floor consistente para evitar que el rounding acumulado empuje los
+  // voxels encima de las líneas de la grilla en niveles profundos.
+  var px = snapPixel(offsetx1 + x * xsize1);
+  var py = snapPixel(offsety1 + y * ysize1);
 
   return { x: px, y: py };
 }
@@ -864,12 +878,14 @@ function draw_pit(canvas, ctx, width, height, depth, refresh_flag) {
     // bottom grid
     ctx.beginPath();
     for (var x = 1; x < width; ++x) {
-      ctx.moveTo(offsetx + x * xsize_bottom, offsety);
-      ctx.lineTo(offsetx + x * xsize_bottom, cheight - offsety);
+      var gx = snapPixel(offsetx + x * xsize_bottom);
+      ctx.moveTo(gx, offsety);
+      ctx.lineTo(gx, cheight - offsety);
     }
     for (var y = 1; y < height; ++y) {
-      ctx.moveTo(offsetx, offsety + y * ysize_bottom);
-      ctx.lineTo(cwidth - offsetx, offsety + y * ysize_bottom);
+      var gy = snapPixel(offsety + y * ysize_bottom);
+      ctx.moveTo(offsetx, gy);
+      ctx.lineTo(cwidth - offsetx, gy);
     }
     ctx.stroke();
 
@@ -881,8 +897,10 @@ function draw_pit(canvas, ctx, width, height, depth, refresh_flag) {
 
     ctx.beginPath();
     for (var x = 0; x < width + 1; ++x) {
-      ctx.moveTo(x * xsize_top, 0);
-      ctx.lineTo(offsetx + x * xsize_bottom, offsety);
+      var topX = snapPixel(x * xsize_top);
+      var bottomX = snapPixel(offsetx + x * xsize_bottom);
+      ctx.moveTo(topX, 0);
+      ctx.lineTo(bottomX, offsety);
     }
     ctx.stroke();
 
@@ -894,8 +912,10 @@ function draw_pit(canvas, ctx, width, height, depth, refresh_flag) {
 
     ctx.beginPath();
     for (var x = 0; x < width + 1; ++x) {
-      ctx.moveTo(x * xsize_top, cheight);
-      ctx.lineTo(offsetx + x * xsize_bottom, cheight - offsety);
+      var topX = snapPixel(x * xsize_top);
+      var bottomX = snapPixel(offsetx + x * xsize_bottom);
+      ctx.moveTo(topX, cheight);
+      ctx.lineTo(bottomX, cheight - offsety);
     }
     ctx.stroke();
 
@@ -907,8 +927,10 @@ function draw_pit(canvas, ctx, width, height, depth, refresh_flag) {
 
     ctx.beginPath();
     for (var y = 1; y < height; ++y) {
-      ctx.moveTo(0, y * ysize_top);
-      ctx.lineTo(offsetx, offsety + y * ysize_bottom);
+      var topY = snapPixel(y * ysize_top);
+      var bottomY = snapPixel(offsety + y * ysize_bottom);
+      ctx.moveTo(0, topY);
+      ctx.lineTo(offsetx, bottomY);
     }
     ctx.stroke();
 
@@ -920,8 +942,10 @@ function draw_pit(canvas, ctx, width, height, depth, refresh_flag) {
 
     ctx.beginPath();
     for (var y = 1; y < height; ++y) {
-      ctx.moveTo(cwidth, y * ysize_top);
-      ctx.lineTo(cwidth - offsetx, offsety + y * ysize_bottom);
+      var topY = snapPixel(y * ysize_top);
+      var bottomY = snapPixel(offsety + y * ysize_bottom);
+      ctx.moveTo(cwidth, topY);
+      ctx.lineTo(cwidth - offsetx, bottomY);
     }
     ctx.stroke();
 
@@ -957,15 +981,18 @@ function render_cube(canvas, ctx, width, height, depth, x, y, z, color, faces, o
   var xsize2 = (cwidth - 2 * offsetx2) / width;
   var ysize2 = (cheight - 2 * offsety2) / height;
 
-  var left1 = Math.round(offsetx1 + x * xsize1);
-  var top1 = Math.round(offsety1 + y * ysize1);
-  var right1 = Math.round(left1 + xsize1);
-  var bottom1 = Math.round(top1 + ysize1);
+  var left1 = snapPixel(offsetx1 + x * xsize1);
+  var top1 = snapPixel(offsety1 + y * ysize1);
+  var right1 = snapPixel(offsetx1 + (x + 1) * xsize1);
+  var bottom1 = snapPixel(offsety1 + (y + 1) * ysize1);
 
-  var left2 = Math.round(offsetx2 + x * xsize2);
-  var top2 = Math.round(offsety2 + y * ysize2);
-  var right2 = Math.round(left2 + xsize2);
-  var bottom2 = Math.round(top2 + ysize2);
+  var left2 = snapPixel(offsetx2 + x * xsize2);
+  var top2 = snapPixel(offsety2 + y * ysize2);
+  var right2 = snapPixel(offsetx2 + (x + 1) * xsize2);
+  var bottom2 = snapPixel(offsety2 + (y + 1) * ysize2);
+
+  var xsize1px = right1 - left1;
+  var ysize1px = bottom1 - top1;
 
   var cx = 0.5 * width;
   var cy = 0.5 * height;
@@ -1068,7 +1095,7 @@ function render_cube(canvas, ctx, width, height, depth, x, y, z, color, faces, o
   // top side
   if (faces[4]) {
     if (render_style == CUBE_GRADIENT) {
-      var lingrad = ctx.createLinearGradient(left1, top1, left1 + xsize1, top1 + ysize1);
+      var lingrad = ctx.createLinearGradient(left1, top1, left1 + xsize1px, top1 + ysize1px);
       lingrad.addColorStop(0.0, topcolor);
       lingrad.addColorStop(0.5, sidecolor);
       lingrad.addColorStop(1.0, sidecolor2);
@@ -1080,8 +1107,8 @@ function render_cube(canvas, ctx, width, height, depth, x, y, z, color, faces, o
        ctx.strokeStyle = outline;
     else
        ctx.strokeStyle = topcolor;
-    ctx.fillRect(left1, top1, xsize1, ysize1);
-    ctx.strokeRect(left1, top1, xsize1, ysize1);
+    ctx.fillRect(left1, top1, xsize1px, ysize1px);
+    ctx.strokeRect(left1, top1, xsize1px, ysize1px);
   }
 }
 
