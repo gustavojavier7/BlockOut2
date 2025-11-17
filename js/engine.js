@@ -1324,7 +1324,11 @@ function generate_piece(shape) {
           add_line([x + 1, y + 1, z], [x + 1, y + 1, z + 1]);
           add_line([x, y + 1, z], [x, y + 1, z + 1]);
 
-          voxels.push([x + 0.5, y + 0.5, z + 0.5]);
+          // Guardamos el voxel en coordenadas enteras para reutilizar el mismo
+          // snapping que emplean las proyecciones trapezoidales (render_cube y
+          // computeVoxelProjection), evitando desalineaciones al alternar entre
+          // wireframe y relleno.
+          voxels.push([x, y, z]);
         }
       }
     }
@@ -1368,25 +1372,31 @@ function render_piece(canvas, ctx, width, height, depth, x, y, z, piece, rotmatr
     var top = projection.top.corners;
     var bottom = projection.bottom.corners;
 
+    // Forzamos aristas usando las mismas esquinas discretizadas que rellenan
+    // las caras en render_cube; así evitamos que el wireframe se desplace sobre
+    // la grilla cuando alternamos estilos.
+    var edges = [
+      // Superior
+      [top[0], top[1]],
+      [top[1], top[2]],
+      [top[2], top[3]],
+      [top[3], top[0]],
+      // Inferior
+      [bottom[0], bottom[1]],
+      [bottom[1], bottom[2]],
+      [bottom[2], bottom[3]],
+      [bottom[3], bottom[0]],
+      // Verticales
+      [top[0], bottom[0]],
+      [top[1], bottom[1]],
+      [top[2], bottom[2]],
+      [top[3], bottom[3]],
+    ];
+
     ctx.beginPath();
-    // Cara superior
-    ctx.moveTo(top[0].x, top[0].y);
-    for (var t = 1; t < top.length; ++t) {
-      ctx.lineTo(top[t].x, top[t].y);
-    }
-    ctx.lineTo(top[0].x, top[0].y);
-
-    // Cara inferior
-    ctx.moveTo(bottom[0].x, bottom[0].y);
-    for (var b = 1; b < bottom.length; ++b) {
-      ctx.lineTo(bottom[b].x, bottom[b].y);
-    }
-    ctx.lineTo(bottom[0].x, bottom[0].y);
-
-    // Aristas verticales
-    for (var e = 0; e < top.length; ++e) {
-      ctx.moveTo(top[e].x, top[e].y);
-      ctx.lineTo(bottom[e].x, bottom[e].y);
+    for (var e = 0; e < edges.length; ++e) {
+      ctx.moveTo(edges[e][0].x, edges[e][0].y);
+      ctx.lineTo(edges[e][1].x, edges[e][1].y);
     }
 
     ctx.stroke();
@@ -1430,12 +1440,20 @@ function project_voxels(piece, x, y, z, rotmatrix) {
   var cx = piece.cx;
   var cy = piece.cy;
   var cz = piece.cz;
+
+  // Usamos el mismo snapping entero que esperan las proyecciones trapezoidales
+  // (computeVoxelProjection/render_cube) para que las coordenadas resultantes
+  // coincidan al trazar aristas y caras.
+  function snapToLattice(value) {
+    return Math.round(value);
+  }
+
   for (var i = 0; i < piece.voxels.length; ++i) {
     var p = translate(piece.voxels[i], [-cx, -cy, -cz]);
     var r = translate(rotate(p, rotmatrix), [x + cx, y + cy, z + cz]);
-    r[0] = snapPixel(r[0]);
-    r[1] = snapPixel(r[1]);
-    r[2] = snapPixel(r[2]);
+    r[0] = snapToLattice(r[0]);
+    r[1] = snapToLattice(r[1]);
+    r[2] = snapToLattice(r[2]);
     voxels.push(r);
   }
   return voxels;
