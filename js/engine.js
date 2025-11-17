@@ -957,18 +957,12 @@ function draw_pit(canvas, ctx, width, height, depth, refresh_flag) {
   }
 }
 
-function render_cube(canvas, ctx, width, height, depth, x, y, z, color, faces, outline) {
+function computeVoxelProjection(canvas, width, height, depth, x, y, z) {
   var cwidth = canvas.width;
   var cheight = canvas.height;
 
-  // This breaks Opera, no idea why expanded expressions work
-  /*
-    var offsetx1 = z*(ZSIZE_X-z);
-    var offsety1 = z*(ZSIZE_Y-z);
-
-    var offsetx2 = (z+1)*(ZSIZE_X-(z+1));
-    var offsety2 = (z+1)*(ZSIZE_Y-(z+1));
-    */
+  // Usamos el mismo cálculo que render_cube para garantizar que wireframe y
+  // caras coloreadas compartan coordenadas exactas tras el snapping.
   var offsetx1 = z * ZSIZE_X - z * z;
   var offsety1 = z * ZSIZE_Y - z * z;
 
@@ -991,8 +985,54 @@ function render_cube(canvas, ctx, width, height, depth, x, y, z, color, faces, o
   var right2 = snapPixel(offsetx2 + (x + 1) * xsize2);
   var bottom2 = snapPixel(offsety2 + (y + 1) * ysize2);
 
-  var xsize1px = right1 - left1;
-  var ysize1px = bottom1 - top1;
+  return {
+    top: {
+      corners: [
+        { x: left1, y: top1 },
+        { x: right1, y: top1 },
+        { x: right1, y: bottom1 },
+        { x: left1, y: bottom1 },
+      ],
+      width: right1 - left1,
+      height: bottom1 - top1,
+      cellWidth: xsize1,
+      cellHeight: ysize1,
+    },
+    bottom: {
+      corners: [
+        { x: left2, y: top2 },
+        { x: right2, y: top2 },
+        { x: right2, y: bottom2 },
+        { x: left2, y: bottom2 },
+      ],
+      width: right2 - left2,
+      height: bottom2 - top2,
+      cellWidth: xsize2,
+      cellHeight: ysize2,
+    },
+  };
+}
+
+function render_cube(canvas, ctx, width, height, depth, x, y, z, color, faces, outline) {
+  var projection = computeVoxelProjection(canvas, width, height, depth, x, y, z);
+  var top = projection.top;
+  var bottom = projection.bottom;
+
+  var cwidth = canvas.width;
+  var cheight = canvas.height;
+
+  var left1 = top.corners[0].x;
+  var top1 = top.corners[0].y;
+  var right1 = top.corners[1].x;
+  var bottom1 = top.corners[2].y;
+
+  var left2 = bottom.corners[0].x;
+  var top2 = bottom.corners[0].y;
+  var right2 = bottom.corners[1].x;
+  var bottom2 = bottom.corners[2].y;
+
+  var xsize1px = top.width;
+  var ysize1px = top.height;
 
   var cx = 0.5 * width;
   var cy = 0.5 * height;
@@ -1297,9 +1337,6 @@ function generate_piece(shape) {
 }
 
 function render_piece(canvas, ctx, width, height, depth, x, y, z, piece, rotmatrix, color) {
-  var cwidth = canvas.width;
-  var cheight = canvas.height;
-
   var cx = piece.cx;
   var cy = piece.cy;
   var cz = piece.cz;
@@ -1311,16 +1348,48 @@ function render_piece(canvas, ctx, width, height, depth, x, y, z, piece, rotmatr
   var l = 0.25 * (2 + (2 * (depth - z)) / depth);
   var c = 'hsl(' + color[0] + ',' + color[1] + '%,' + l * color[2] + '%)';
 
-  var p1, p2, r1, r2;
-  for (var i = 0; i < piece.lines.length; ++i) {
-    p1 = translate(piece.lines[i][0], [-cx, -cy, -cz]);
-    p2 = translate(piece.lines[i][1], [-cx, -cy, -cz]);
-    r1 = translate(rotate(p1, rotmatrix), [x + cx, y + cy, z + cz]);
-    r2 = translate(rotate(p2, rotmatrix), [x + cx, y + cy, z + cz]);
+  var voxels = project_voxels(piece, x, y, z, rotmatrix);
 
-    //ctx.lineWidth = 0.5+1.5*(depth-0.5*(r1[2]+r2[2]))/depth;
-    ctx.lineWidth = 0.5 + (1.5 * (depth - z)) / depth;
-    line3d(ctx, cwidth, cheight, width, height, r1, r2, c);
+  for (var i = 0; i < voxels.length; ++i) {
+    var voxel = voxels[i];
+    var projection = computeVoxelProjection(
+      canvas,
+      width,
+      height,
+      depth,
+      voxel[0],
+      voxel[1],
+      voxel[2]
+    );
+
+    ctx.lineWidth = 0.5 + (1.5 * (depth - voxel[2])) / depth;
+    ctx.strokeStyle = c;
+
+    var top = projection.top.corners;
+    var bottom = projection.bottom.corners;
+
+    ctx.beginPath();
+    // Cara superior
+    ctx.moveTo(top[0].x, top[0].y);
+    for (var t = 1; t < top.length; ++t) {
+      ctx.lineTo(top[t].x, top[t].y);
+    }
+    ctx.lineTo(top[0].x, top[0].y);
+
+    // Cara inferior
+    ctx.moveTo(bottom[0].x, bottom[0].y);
+    for (var b = 1; b < bottom.length; ++b) {
+      ctx.lineTo(bottom[b].x, bottom[b].y);
+    }
+    ctx.lineTo(bottom[0].x, bottom[0].y);
+
+    // Aristas verticales
+    for (var e = 0; e < top.length; ++e) {
+      ctx.moveTo(top[e].x, top[e].y);
+      ctx.lineTo(bottom[e].x, bottom[e].y);
+    }
+
+    ctx.stroke();
   }
 
 
@@ -1364,9 +1433,9 @@ function project_voxels(piece, x, y, z, rotmatrix) {
   for (var i = 0; i < piece.voxels.length; ++i) {
     var p = translate(piece.voxels[i], [-cx, -cy, -cz]);
     var r = translate(rotate(p, rotmatrix), [x + cx, y + cy, z + cz]);
-    r[0] = Math.floor(r[0]);
-    r[1] = Math.floor(r[1]);
-    r[2] = Math.floor(r[2]);
+    r[0] = snapPixel(r[0]);
+    r[1] = snapPixel(r[1]);
+    r[2] = snapPixel(r[2]);
     voxels.push(r);
   }
   return voxels;
