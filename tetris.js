@@ -1,6 +1,6 @@
 /*
  * PROJECT:  JsTetris
- * VERSION:  1.20
+ * VERSION:  1.30
  * LICENSE:  BSD (revised)
  * AUTHOR:   (c) 2004 Czarek Tomczak
  * WEBSITE:  https://github.com/cztomczak/jstetris
@@ -1773,95 +1773,98 @@ this.evaluateGrid = function(grid, linesCleared) {
         var TOTAL_ROWS = self.tetris.areaY; // 22
         var TOTAL_COLS = self.tetris.areaX; // 12
         var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
+        
+        // COEFICIENTES DE ESCALADO (AJUSTADOS PARA COMPENSACIÓN)
+        var HOLES_MULTIPLIER = 1000; // Multiplica Costo Agujeros x 1000
+        var ROUGHNESS_COEF = 1.0;   // Aumenta Rugosidad (antes 0.1)
+        var LINES_BASE_REWARD = 1000; // Base de la recompensa por línea (antes 10000)
 
         // Acumuladores de Costo
-        var holesCost = 0;      // Costo por Agujeros (Factor Crítico)
-        var roughnessCost = 0;  // Costo por Rugosidad (Factor Estabilidad)
-        var chimneyCost = 0;    // Costo por Chimenea (Factor Riesgo Estructural)
+        var holesCost = 0;
+        var roughnessCost = 0; 
+        var chimneyCost = 0;    
         
         // Variables de Estado del Tablero
         var occupiedCells = 0;
-        var heights = [];           // Altura de cada columna
-        var holesInCol = [];        // Cantidad de agujeros en cada columna
-        var holesInRow = new Array(TOTAL_ROWS).fill(0); // Agujeros por fila
+        var heights = [];           
+        var holesInCol = [];        
+        var holesInRow = new Array(TOTAL_ROWS).fill(0); 
+        var highestClearedRow = TOTAL_ROWS; // Se asume limpieza en la base (fila 22)
 
-        // --- 2. ESCANEO DEL TABLERO (Métricas Físicas) ---
+        // --- 2. ESCANEO Y CÁLCULO DE MÉTRICAS FÍSICAS ---
         for (var x = 0; x < TOTAL_COLS; x++) {
                 var colHeight = 0;
                 var colHoles = 0;
                 var blockFound = false;
 
                 for (var y = 0; y < TOTAL_ROWS; y++) {
-                        // Asumiendo grid[y][x] != 0 es ocupado. y=0 es techo.
                         var hasBlock = (grid[y][x] !== 0);
 
                         if (hasBlock) {
                                 occupiedCells++;
                                 if (!blockFound) {
-                                        colHeight = TOTAL_ROWS - y; // Altura desde la base
+                                        colHeight = TOTAL_ROWS - y; 
                                         blockFound = true;
                                 }
                         } else if (blockFound) {
-                                // HUECO DETECTADO (Vacío con bloque encima)
-                                colHoles++;       // Contador para la columna (Chimenea)
-                                holesInRow[y]++;  // Contador para la fila (Costo Agujeros)
+                                colHoles++;       
+                                holesInRow[y]++;  
                         }
                 }
                 heights.push(colHeight);
                 holesInCol.push(colHoles);
         }
 
-        // --- 3. CÁLCULO DE COSTOS HEURÍSTICOS ---
+        // --- 3. CÁLCULO DE COSTOS HEURÍSTICOS REESCALADOS ---
 
-        // A. COSTO DE AGUJEROS (Ponderación Cuadrática por Fila)
-        // Formula: Suma (AgujerosEnFila^2 * PesoAltura)
+        // A. COSTO DE AGUJEROS (Ponderación Cuadrática * ESCALADO)
         for (var y = 0; y < TOTAL_ROWS; y++) {
                 if (holesInRow[y] > 0) {
-                        var rowHeightWeight = TOTAL_ROWS - y; // 1 en base, 22 en techo
-                        // Penalidad cuadrática: premia filas limpias, castiga severamente filas sucias
-                        holesCost += (holesInRow[y] * holesInRow[y]) * rowHeightWeight;
+                        var rowHeightWeight = TOTAL_ROWS - y; 
+                        // Costo Total = (Densidad^2 * Altura) * Multiplicador 
+                        holesCost += (holesInRow[y] * holesInRow[y]) * rowHeightWeight * HOLES_MULTIPLIER;
+                        
+                        // Si es la fila más alta despejada (más cerca del techo), registrar su y
+                        if (y < highestClearedRow) {
+                                highestClearedRow = y;
+                        }
                 }
         }
 
-        // B. COSTO DE RUGOSIDAD (Ponderado por Ocupación)
-        // Formula: Suma(|DifAlturas|) * CeldasOcupadas * Coeficiente
+        // B. COSTO DE RUGOSIDAD (Ponderado por Ocupación * ESCALADO)
         var roughnessSum = 0;
         for (var i = 0; i < TOTAL_COLS - 1; i++) {
                 roughnessSum += Math.abs(heights[i] - heights[i + 1]);
         }
-        // Si el tablero está lleno, la rugosidad es más peligrosa (+0.1 base estimado)
-        roughnessCost = roughnessSum * occupiedCells * 0.1;
+        // Multiplicar por el coeficiente aumentado (1.0) para que sea un castigo serio
+        roughnessCost = roughnessSum * occupiedCells * ROUGHNESS_COEF; 
 
         // C. COSTO POR CHIMENEA (Riesgo de Mantenimiento con Fallas)
-        // Condición: Diferencia de altura >= 4 con vecinos.
-        // Formula: AlturaChimenea * AgujerosEnChimenea
         for (var x = 0; x < TOTAL_COLS; x++) {
-                // Definir altura de vecinos (Los bordes actúan como paredes de altura infinita/máxima)
                 var hLeft = (x === 0) ? TOTAL_ROWS : heights[x - 1];
                 var hRight = (x === TOTAL_COLS - 1) ? TOTAL_ROWS : heights[x + 1];
-
-                // Altura mínima de las paredes adyacentes
                 var minWallHeight = Math.min(hLeft, hRight);
 
-                // Verificar geometría de Pozo Profundo (Chimenea)
                 if (minWallHeight - heights[x] >= 4) {
-                        // Es una chimenea válida. Calcular Costo de Riesgo.
-                        // Si holesInCol[x] es 0, el costo es 0 (Ideal).
-                        // Si hay agujeros, el costo escala con la altura de la inversión.
                         chimneyCost += (heights[x] * holesInCol[x]); 
                 }
         }
 
-        // D. RECOMPENSA POR LÍNEAS (Reducción de Costo)
-        // Usamos un valor negativo grande para "restar" costo.
+        // D. RECOMPENSA POR LÍNEAS (Reducción de Costo — Reducida)
         var linesReward = 0;
         if (linesCleared > 0) {
-                // Base: 10,000 por línea
-                // Bonus cuadrático: favorece Tetris (4 líneas)
-                linesReward = linesCleared * 10000 + (linesCleared * linesCleared * 2000);
+                // Base: 1000 por línea
+                // Bonus cuadrático: +500 por cada línea eliminada simultáneamente
+                var baseReward = linesCleared * LINES_BASE_REWARD;
+                var bonusReward = linesCleared * linesCleared * 500;
+                
+                // Bonificación por Altura de Limpieza (se resta del costo)
+                var heightBonus = (TOTAL_ROWS - highestClearedRow) * 100;
+                
+                linesReward = baseReward + bonusReward + heightBonus;
         }
 
-        // --- 4. INTEGRACIÓN Y NORMALIZACIÓN DEL RIESGO ---
+        // --- 4. INTEGRACIÓN FINAL DEL RIESGO ---
 
         // Riesgo Local Base (RLB): % de Ocupación Física (0 a 100)
         var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
@@ -1869,12 +1872,11 @@ this.evaluateGrid = function(grid, linesCleared) {
         // Costo Heurístico Total (Suma de penalidades complejas)
         var heuristicCost = holesCost + roughnessCost + chimneyCost;
 
-        // Coeficiente de Sensibilidad (S): Escala el impacto heurístico sobre el riesgo base.
-        // Un valor de 500 significa que acumular 500 puntos de penalidad duplicará el riesgo percibido.
+        // Coeficiente de Sensibilidad (S): Se mantiene en 500, pero los costos son miles de veces mayores
         var S_SENSITIVITY = 500; 
 
         // CÁLCULO FINAL (MINIMIZAR ESTE VALOR)
-        // Riesgo Final = RLB * (1 + CostoHeurístico/S) - Recompensa
+        // El bot ahora es fuertemente Anti-Agujeros (Costo Agujeros >> Recompensa Líneas)
         var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
 
         return totalRiskScore;
