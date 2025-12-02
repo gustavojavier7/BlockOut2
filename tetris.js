@@ -1121,10 +1121,17 @@ function Tetris()
 						el.style.top = (y * this.area.unit) + "px";
 						document.getElementById("tetris-nextpuzzle").appendChild(el);
 						this.nextElements.push(el);
-					}
-				}
-			}
-		};
+}
+}
+}
+
+			// Activar el bot para la nueva pieza cuando corresponda
+			if (window.bot && window.bot.enabled) {
+				setTimeout(function() {
+					window.bot.makeMove();
+				}, 100);
+}
+			};
 
 		/**
 		 * Remove puzzle from the area.
@@ -1633,4 +1640,377 @@ if (!String.prototype.format) {
 		}
 		return s;
 	};
+}
+
+/**
+* Agente Inteligente para Tetris
+* Implementa búsqueda heurística con pesos ponderados.
+*/
+function TetrisBot(tetrisInstance) {
+	this.tetris = tetrisInstance;
+	this.enabled = false;
+	this.isThinking = false;
+
+        // CONFIGURACIÓN DE HEURÍSTICA
+        // Estos pesos definen la personalidad del bot.
+        this.weights = {
+                lines: 4.0, // Recompensa: prioriza limpiar líneas (Tetris = 16pts)
+                holes: -1.0, // Penalidad: ponderación base para huecos por altura
+                roughness: -0.1, // Penalidad: rugosidad ponderada por ocupación
+                aggHeight: -0.5, // Penalidad: altura agregada ponderada por diferencia de borde
+                maxHeight: -2.0 // Penalidad: seguridad contra picos altos
+        };
+
+var self = this;
+
+// --- CONTROL PÚBLICO ---
+
+this.toggle = function() {
+	self.enabled = !self.enabled;
+	var btn = document.getElementById("tetris-menu-ai");
+
+	if (self.enabled) {
+		if (btn) { btn.innerHTML = "Jugar Humano"; }
+		// Si hay un juego activo, tomar control inmediato
+		if (self.tetris.puzzle && self.tetris.puzzle.isRunning()) {
+			self.makeMove();
+		}
+} else {
+if (btn) { btn.innerHTML = "Cambiar a IA"; }
+self.isThinking = false; // Detener procesos pendientes
+}
+			};
+
+// --- BUCLE DE DECISIÓN (FAST-FAIL) ---
+
+this.makeMove = function() {
+	if (!self.enabled) { return; }
+	if (self.tetris.paused) { return; }
+	if (!self.tetris.puzzle || !self.tetris.puzzle.isRunning()) { return; }
+	if (self.isThinking) { return; }
+
+	self.isThinking = true;
+
+	// 1. Calcular la mejor jugada posible
+	// (Nota: Esto es intensivo, podría ir en un WebWorker en el futuro)
+	var bestMove = self.calculateBestMove();
+
+	// 2. Ejecutar la jugada visualmente
+	if (bestMove) {
+		self.executeMoveSmoothly(bestMove);
+	} else {
+	// Si no hay movimiento válido (game over inminente), liberar
+	self.isThinking = false;
+}
+			};
+
+// --- EJECUCIÓN VISUAL (ANIMACIÓN) ---
+
+this.executeMoveSmoothly = function(move) {
+	var actions = [];
+
+	// 1. Planificar rotaciones
+	for (var i = 0; i < move.rotation; i++) { actions.push('up'); }
+
+	// 2. Planificar movimiento lateral
+	var currentX = self.tetris.puzzle.getX();
+	var targetX = move.x;
+	var dx = targetX - currentX;
+	var dir = dx > 0 ? 'right' : 'left';
+
+	for (var j = 0; j < Math.abs(dx); j++) { actions.push(dir); }
+
+	// 3. Planificar caída final
+	actions.push('space');
+
+	// 4. Ejecutar secuencia con retardo
+	var k = 0;
+	function playStep() {
+		if (!self.enabled || !self.tetris.puzzle || self.tetris.puzzle.isStopped()) {
+			self.isThinking = false;
+			return;
+		}
+
+	if (k < actions.length) {
+		var action = actions[k++];
+
+		if (action === 'up') { self.tetris.up(); }
+		else if (action === 'left') { self.tetris.left(); }
+		else if (action === 'right') { self.tetris.right(); }
+		else if (action === 'space') { self.tetris.space(); }
+
+		setTimeout(playStep, 50);
+	} else {
+	self.isThinking = false;
+}
+}
+playStep();
+			};
+
+// --- MOTOR DE IA Y HEURÍSTICA ---
+
+this.calculateBestMove = function() {
+	var bestScore = -Infinity;
+	var bestMove = null;
+
+	for (var r = 0; r < 4; r++) {
+		for (var x = 0; x < self.tetris.areaX; x++) {
+			var simulation = self.simulateDrop(r, x);
+
+			if (simulation.isValid) {
+				var score = self.evaluateGrid(simulation.grid, simulation.linesCleared);
+
+				if (score > bestScore) {
+					bestScore = score;
+					bestMove = { rotation: r, x: x };
+				}
+		}
+}
+}
+return bestMove;
+			};
+
+this.evaluateGrid = function(grid, linesCleared) {
+        var score = 0;
+        var heights = [];
+        var occupiedCells = 0; // Nuevo Factor: Ocupación
+        var holesScore = 0;
+        var roughness = 0;
+        var aggHeightScore = 0;
+        var highestClearedRow = self.tetris.areaY; // Inicializado al fondo
+
+        var TOTAL_ROWS = self.tetris.areaY; // 22
+        var TOTAL_COLS = self.tetris.areaX; // 12
+
+        // COEFICIENTES BASE (Múltiplos de riesgo)
+        var C_LINES = 4.0;
+        var C_HOLES = -1.0;
+        var C_ROUGH = -0.1;
+        var C_AGG = -0.5;
+        var C_MAXH = -2.0;
+
+        // 1. CÁLCULO DE ALTURAS, OCUPACIÓN y AGUJEROS PONDERADOS
+        for (var x = 0; x < TOTAL_COLS; x++) {
+                var colHeight = 0;
+                var blockFound = false;
+
+                for (var y = 0; y < TOTAL_ROWS; y++) {
+                        var hasBlock = (grid[y][x] !== 0);
+
+                        if (hasBlock) {
+                                occupiedCells++; // Suma celdas ocupadas
+                                if (!blockFound) {
+                                        // La primera pieza encontrada define la altura
+                                        colHeight = TOTAL_ROWS - y;
+                                        blockFound = true;
+                                }
+                        } else if (blockFound) {
+                                // FACTOR AGUJEROS (Penalidad progresiva por altura)
+                                var holeWeight = (TOTAL_ROWS - y); // Distancia desde el techo
+                                holesScore += holeWeight;
+                        }
+                }
+                heights.push(colHeight);
+        }
+
+        // 2. CÁLCULO DE PONDERACIÓN DE BORDE (Factor de Riesgo de Chimenea)
+        var borderDiff = Math.abs(heights[0] - heights[TOTAL_COLS - 1]); // Diferencia H[0] - H[11]
+
+        // Ponderación base de Altura (castigo central)
+        var center = (TOTAL_COLS - 1) / 2;
+        for (var i = 0; i < heights.length; i++) {
+                var dist = Math.abs(i - center);
+                var centerPenalty = 1 + (4 * (1 - (dist / center)));
+                aggHeightScore += (heights[i] * centerPenalty);
+        }
+
+        // 3. CÁLCULO DE RUGOSIDAD PONDERADA (Factor 3)
+        for (var i2 = 0; i2 < heights.length - 1; i2++) {
+                roughness += Math.abs(heights[i2] - heights[i2 + 1]);
+        }
+
+        // CÁLCULO DE ALTURA MÁXIMA (Factor 5)
+        var maxHeight = Math.max.apply(null, heights);
+
+
+        // --- APLICACIÓN DE LA FÓRMULA DINÁMICA FINAL ---
+
+        // SCORE 1: LÍNEAS ELIMINADAS (Recompensa Dinámica)
+        // Recompensa = Líneas * [C_Líneas + Bonificación por Cantidad + Bonificación por Altura]
+        score += linesCleared * (C_LINES +
+                                (linesCleared * 1.0) + // Bonificación por Tetris (ej: 4 líneas * 1.0)
+                                (TOTAL_ROWS - highestClearedRow) * 0.1); // Bonificación por Altura de Limpieza
+
+        // SCORE 2: AGUJEROS PONDERADOS
+        score += (holesScore * C_HOLES);
+
+        // SCORE 3: RUGOSIDAD PONDERADA POR OCUPACIÓN
+        // Penalidad = Rugosidad * Ocupación * C_Rough
+        score += (roughness * occupiedCells * C_ROUGH);
+
+        // SCORE 4: ALTURA AGREGADA PONDERADA POR DIFERENCIA DE BORDE
+        // Penalidad = Agg.Height * [C_Agg * (1.0 + Diferencia de Borde * Multiplicador)]
+        var dynamicAggMultiplier = C_AGG * (1.0 + borderDiff * 0.2);
+        score += (aggHeightScore * dynamicAggMultiplier);
+
+        // SCORE 5: ALTURA MÁXIMA
+        score += (maxHeight * C_MAXH);
+
+        return score;
+                        };
+
+// --- SIMULACIÓN FÍSICA ---
+this.simulateDrop = function(rotation, targetX) {
+	if (!self.tetris || !self.tetris.area || !self.tetris.puzzle) {
+		return { isValid: false, grid: [], linesCleared: 0 };
+	}
+
+var areaGrid = cloneAreaGrid(self.tetris.area.board);
+var pieceGrid = clonePieceGrid(self.tetris.puzzle.board);
+
+if (!pieceGrid.length) {
+	return { isValid: false, grid: [], linesCleared: 0 };
+}
+
+for (var i = 0; i < rotation; i++) {
+	pieceGrid = rotateGrid(pieceGrid);
+}
+
+var posX = self.tetris.puzzle.getX();
+var posY = self.tetris.puzzle.getY();
+
+if (!isPositionValid(pieceGrid, posX, posY, areaGrid)) {
+	return { isValid: false, grid: [], linesCleared: 0 };
+}
+
+if (targetX < 0 || targetX >= self.tetris.areaX) {
+	return { isValid: false, grid: [], linesCleared: 0 };
+}
+
+var dir = targetX > posX ? 1 : -1;
+while (posX !== targetX) {
+	var nextX = posX + dir;
+	if (!isPositionValid(pieceGrid, nextX, posY, areaGrid)) {
+		return { isValid: false, grid: [], linesCleared: 0 };
+	}
+posX = nextX;
+}
+
+while (isPositionValid(pieceGrid, posX, posY + 1, areaGrid)) {
+	posY++;
+}
+
+var mergedGrid = mergePiece(areaGrid, pieceGrid, posX, posY);
+var cleared = clearFullLines(mergedGrid);
+
+return { isValid: true, grid: cleared.grid, linesCleared: cleared.lines };
+			};
+
+function cloneAreaGrid(board) {
+	var grid = [];
+	for (var y = 0; y < board.length; y++) {
+		grid.push([]);
+		for (var x = 0; x < board[y].length; x++) {
+			grid[y].push(board[y][x] ? 1 : 0);
+		}
+}
+return grid;
+}
+
+function clonePieceGrid(board) {
+	var grid = [];
+	for (var y = 0; y < board.length; y++) {
+		grid.push([]);
+		for (var x = 0; x < board[y].length; x++) {
+			grid[y].push(board[y][x] ? 1 : 0);
+		}
+}
+return grid;
+}
+
+function rotateGrid(matrix) {
+	var size = matrix.length;
+	var rotated = [];
+	for (var y = 0; y < size; y++) {
+		rotated.push([]);
+		for (var x = 0; x < size; x++) {
+			rotated[y].push(0);
+		}
+}
+
+for (var y2 = 0; y2 < size; y2++) {
+	for (var x2 = 0; x2 < size; x2++) {
+		if (matrix[y2][x2]) {
+			var newY = size - 1 - x2;
+			var newX = y2;
+			rotated[newY][newX] = 1;
+		}
+}
+}
+
+return rotated;
+}
+
+function isPositionValid(piece, posX, posY, areaGrid) {
+	for (var y = 0; y < piece.length; y++) {
+		for (var x = 0; x < piece[y].length; x++) {
+			if (piece[y][x]) {
+				var boardY = posY + y;
+				var boardX = posX + x;
+
+				if (boardY >= self.tetris.areaY) { return false; }
+				if (boardX < 0 || boardX >= self.tetris.areaX) { return false; }
+				if (areaGrid[boardY][boardX]) { return false; }
+			}
+	}
+}
+return true;
+}
+
+function mergePiece(areaGrid, piece, posX, posY) {
+	var grid = cloneAreaGrid(areaGrid);
+	for (var y = 0; y < piece.length; y++) {
+		for (var x = 0; x < piece[y].length; x++) {
+			if (piece[y][x]) {
+				grid[posY + y][posX + x] = 1;
+			}
+	}
+}
+return grid;
+}
+
+function clearFullLines(grid) {
+	var cleared = 0;
+	var newGrid = [];
+	for (var y = grid.length - 1; y >= 0; y--) {
+		var isFull = true;
+		for (var x = 0; x < grid[y].length; x++) {
+			if (!grid[y][x]) {
+				isFull = false;
+				break;
+			}
+	}
+
+if (isFull) {
+	cleared++;
+} else {
+newGrid.unshift(grid[y].slice());
+}
+}
+
+while (newGrid.length < self.tetris.areaY) {
+	var emptyRow = [];
+	for (var i = 0; i < self.tetris.areaX; i++) {
+		emptyRow.push(0);
+	}
+newGrid.unshift(emptyRow);
+}
+
+return { grid: newGrid, lines: cleared };
+}
+}
+
+// Exponer el bot en el ámbito global para evitar referencias indefinidas
+if (typeof window !== 'undefined') {
+        window.TetrisBot = TetrisBot;
 }
