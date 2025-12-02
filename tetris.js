@@ -1653,13 +1653,14 @@ function TetrisBot(tetrisInstance) {
 
 	// CONFIGURACIÓN DE HEURÍSTICA
 	// Estos pesos definen la personalidad del bot.
-	this.weights = {
-		lines: 4.0, // Recompensa: Prioriza limpiar líneas (Tetris = 16pts)
-		holes: -35.0, // Penalidad: EVITAR A TODA COSTA (Ponderado por altura)
-		roughness: -1.0, // Penalidad: Mantener el techo plano
-		aggHeight: -0.5, // Penalidad: Mantener bajo (Ponderado, castiga centro)
-		maxHeight: -2.0 // Penalidad: Seguridad contra picos altos
-	};
+        this.weights = {
+                lines: 4.0, // Recompensa: Prioriza limpiar líneas (Tetris = 16pts)
+                holes: -35.0, // Penalidad: EVITAR A TODA COSTA (Ponderado por altura)
+                roughness: -1.0, // Penalidad: Mantener el techo plano
+                aggHeight: -0.5, // Penalidad: Mantener bajo (Ponderado, castiga centro)
+                maxHeight: -2.0, // Penalidad: Seguridad contra picos altos
+                chimneyDynamic: -10.0 // Penalidad dinámica por altura peligrosa de chimenea
+        };
 
 var self = this;
 
@@ -1797,26 +1798,44 @@ this.evaluateGrid = function(grid, linesCleared) {
 heights.push(colHeight);
 }
 
-var center = (self.tetris.areaX - 1) / 2;
-for (var i = 0; i < heights.length; i++) {
-	var dist = Math.abs(i - center);
-	var centerPenalty = 1 + (4 * (1 - (dist / center)));
-	aggHeightScore += (heights[i] * centerPenalty);
-}
+        var center = (self.tetris.areaX - 1) / 2;
+        for (var i = 0; i < heights.length; i++) {
+                var dist = Math.abs(i - center);
+                var centerPenalty = 1 + (4 * (1 - (dist / center)));
+                aggHeightScore += (heights[i] * centerPenalty);
+        }
 
-for (var i2 = 0; i2 < heights.length - 1; i2++) {
-	roughness += Math.abs(heights[i2] - heights[i2 + 1]);
-}
+        for (var i2 = 0; i2 < heights.length - 1; i2++) {
+                roughness += Math.abs(heights[i2] - heights[i2 + 1]);
+        }
 
-var maxHeight = Math.max.apply(null, heights);
+        var maxHeight = Math.max.apply(null, heights);
+        var minHeight = Math.min.apply(null, heights);
 
-score += (linesCleared * self.weights.lines);
-score += (holesScore * self.weights.holes);
-score += (roughness * self.weights.roughness);
-score += (aggHeightScore * self.weights.aggHeight);
-score += (maxHeight * self.weights.maxHeight);
+        // Penalidad dinámica de chimenea: activa solo cuando la columna más baja supera el umbral
+        var chimneyDynamicPenalty = 0;
+        var TOTAL_ROWS = self.tetris.areaY; // Altura total del tablero (22)
+        var UMBRAL_CRITICO = 18; // Deja 4 filas libres
 
-return score;
+        if (minHeight > UMBRAL_CRITICO) {
+                var penaltyBase = minHeight - UMBRAL_CRITICO;
+                var safetyMargin = TOTAL_ROWS - maxHeight;
+
+                if (safetyMargin < 1) {
+                        safetyMargin = 1;
+                }
+
+                chimneyDynamicPenalty = penaltyBase / safetyMargin;
+        }
+
+        score += (linesCleared * self.weights.lines);
+        score += (holesScore * self.weights.holes);
+        score += (roughness * self.weights.roughness);
+        score += (aggHeightScore * self.weights.aggHeight);
+        score += (maxHeight * self.weights.maxHeight);
+        score += (chimneyDynamicPenalty * self.weights.chimneyDynamic);
+
+        return score;
 			};
 
 // --- SIMULACIÓN FÍSICA ---
