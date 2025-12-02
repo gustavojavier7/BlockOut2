@@ -1774,27 +1774,27 @@ this.evaluateGrid = function(grid, linesCleared) {
         var TOTAL_COLS = self.tetris.areaX; // 12
         var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
         
-        // COEFICIENTES DE ESCALADO (Ajustados para la nueva supervivencia)
-        var HOLES_MULTIPLIER = 5000;    // Costo de Agujeros (Riesgo funcional)
-        var ROUGHNESS_COEF = 10.0;      // Costo de Rugosidad (Riesgo estructural)
-        var MAX_HEIGHT_COEF = 50.0;     // Costo de Altura Máxima (Riesgo de supervivencia)
-        var LINES_BASE_REWARD = 100;    // Recompensa base por línea (Reducción de Costo)
-
+        // COEFICIENTES BASE (FIJOS)
+        var BASE_HOLES_MULTIPLIER = 5000;  
+        var BASE_ROUGHNESS_COEF = 10.0;     
+        var BASE_MAX_HEIGHT_COEF = 150.0;   
+        var LINES_BASE_REWARD = 100; // Se mantiene constante, no se escala
+        
         // Acumuladores de Costo
         var holesCost = 0;      
         var roughnessCost = 0;  
         var chimneyCost = 0;    
-        var maxHeightCost = 0; // NUEVO ACUMULADOR
-        
-        // Variables de Estado del Tablero
+        var maxHeightCost = 0; 
         var occupiedCells = 0;
         var heights = [];           
         var holesInCol = [];        
         var holesInRow = new Array(TOTAL_ROWS).fill(0); 
         var highestClearedRow = TOTAL_ROWS; 
-        var maxHeight = 0; // Se inicializa en 0
+        var maxHeight = 0; 
+        var aggregateHeightCost = 0; 
 
         // --- 2. ESCANEO Y CÁLCULO DE MÉTRICAS FÍSICAS ---
+        // (Este bucle permanece sin cambios, calcula occupiedCells, maxHeight, heights, etc.)
         for (var x = 0; x < TOTAL_COLS; x++) {
                 var colHeight = 0;
                 var colHoles = 0;
@@ -1808,29 +1808,33 @@ this.evaluateGrid = function(grid, linesCleared) {
                                 if (!blockFound) {
                                         colHeight = TOTAL_ROWS - y; 
                                         blockFound = true;
-                                        
-                                        // 📢 CÁLCULO DE ALTURA MÁXIMA (FACTOR 5)
                                         if (colHeight > maxHeight) { 
                                             maxHeight = colHeight;
                                         }
                                 }
                         } else if (blockFound) {
-                                // HUECO DETECTADO
                                 colHoles++;       
                                 holesInRow[y]++;  
                         }
                 }
                 heights.push(colHeight);
                 holesInCol.push(colHoles);
+                aggregateHeightCost += colHeight;
         }
 
-        // --- 3. CÁLCULO DE COSTOS HEURÍSTICOS REESCALADOS ---
+        // --- 3. CÁLCULO DEL FACTOR DE ESCALADO Y COSTOS DINÁMICOS ---
 
-        // A. COSTO DE AGUJEROS (Ponderación Cuadrática * ESCALADO)
+        // 3.1 CÁLCULO DEL FACTOR DE ESCALADO BASADO EN RLB
+        var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
+        var riskScalingFactor = 1 + (riskLocalBase / 100); // F = 1 + RLB%
+
+        // 📢 A. COSTO DE AGUJEROS (Ponderación Cuadrática * AUTOESCALADO)
         for (var y = 0; y < TOTAL_ROWS; y++) {
                 if (holesInRow[y] > 0) {
                         var rowHeightWeight = TOTAL_ROWS - y; 
-                        holesCost += (holesInRow[y] * holesInRow[y]) * rowHeightWeight * HOLES_MULTIPLIER;
+                        var effectiveMultiplier = BASE_HOLES_MULTIPLIER * riskScalingFactor; // Multiplicador dinámico
+                        
+                        holesCost += (holesInRow[y] * holesInRow[y]) * rowHeightWeight * effectiveMultiplier;
                         
                         if (y < highestClearedRow) {
                                 highestClearedRow = y;
@@ -1838,50 +1842,48 @@ this.evaluateGrid = function(grid, linesCleared) {
                 }
         }
 
-        // B. COSTO DE RUGOSIDAD (Ponderado por Ocupación * ESCALADO)
+        // 📢 B. COSTO DE RUGOSIDAD (Ponderado por Ocupación * AUTOESCALADO)
         var roughnessSum = 0;
         for (var i = 0; i < TOTAL_COLS - 1; i++) {
                 roughnessSum += Math.abs(heights[i] - heights[i + 1]);
         }
-        roughnessCost = roughnessSum * occupiedCells * ROUGHNESS_COEF; 
+        var effectiveRoughnessCoef = BASE_ROUGHNESS_COEF * riskScalingFactor; // Coeficiente dinámico
+        roughnessCost = roughnessSum * occupiedCells * effectiveRoughnessCoef; 
 
-        // C. COSTO POR CHIMENEA (Riesgo de Mantenimiento con Fallas)
+        // 📢 C. COSTO DE ALTURA MÁXIMA (AUTOESCALADO)
+        var effectiveMaxHeightCoef = BASE_MAX_HEIGHT_COEF * riskScalingFactor; // Coeficiente dinámico
+        maxHeightCost = maxHeight * effectiveMaxHeightCoef;
+        
+        // D. COSTO POR CHIMENEA (Riesgo de Mantenimiento con Fallas)
+        // (La lógica interna de chimenea no se escala directamente, solo sus contribuyentes)
         for (var x = 0; x < TOTAL_COLS; x++) {
                 var hLeft = (x === 0) ? TOTAL_ROWS : heights[x - 1];
                 var hRight = (x === TOTAL_COLS - 1) ? TOTAL_ROWS : heights[x + 1];
                 var minWallHeight = Math.min(hLeft, hRight);
 
                 if (minWallHeight - heights[x] >= 4) {
-                        // Costo = Altura Chimenea * Agujeros en Chimenea
                         chimneyCost += (heights[x] * holesInCol[x]); 
                 }
         }
-        
-        // 📢 D. COSTO DE ALTURA MÁXIMA (NUEVA PENALIDAD DE SUPERVIVENCIA)
-        maxHeightCost = maxHeight * MAX_HEIGHT_COEF;
 
-        // E. RECOMPENSA POR LÍNEAS (Reducción de Costo)
+        // E. RECOMPENSA POR LÍNEAS (Reducción de Costo Fija)
         var linesReward = 0;
         if (linesCleared > 0) {
                 var baseReward = linesCleared * LINES_BASE_REWARD;
                 var bonusReward = linesCleared * linesCleared * 500;
                 var heightBonus = (TOTAL_ROWS - highestClearedRow) * 100;
-                
                 linesReward = baseReward + bonusReward + heightBonus;
         }
 
         // --- 4. INTEGRACIÓN FINAL DEL RIESGO ---
 
-        // Riesgo Local Base (RLB): % de Ocupación Física (0 a 100)
-        var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
+        // Costo Heurístico Total (Suma de TODAS las penalidades, ahora dinámicamente infladas)
+        var heuristicCost = holesCost + roughnessCost + chimneyCost + maxHeightCost; 
 
-        // Costo Heurístico Total (Suma de TODAS las penalidades)
-        var heuristicCost = holesCost + roughnessCost + chimneyCost + maxHeightCost; // MAX HEIGHT AÑADIDO
-
-        // Coeficiente de Sensibilidad (S)
-        var S_SENSITIVITY = 500; 
-
+        var S_SENSITIVITY = 500; 
+        
         // CÁLCULO FINAL (MINIMIZAR ESTE VALOR)
+        // RLB * (1 + CostoHeurístico/S) - Recompensa
         var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
 
         return totalRiskScore;
