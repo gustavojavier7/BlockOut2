@@ -1771,93 +1771,116 @@ return bestMove;
 			};
 
 this.evaluateGrid = function(grid, linesCleared) {
-        var score = 0;
-        var heights = [];
-        var occupiedCells = 0; // Nuevo Factor: Ocupación
-        var holesScore = 0;
-        var roughness = 0;
-        var aggHeightScore = 0;
-        var highestClearedRow = self.tetris.areaY; // Inicializado al fondo
-
+        // --- 1. DEFINICIÓN DE CONSTANTES Y VARIABLES ---
         var TOTAL_ROWS = self.tetris.areaY; // 22
         var TOTAL_COLS = self.tetris.areaX; // 12
+        var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
 
-        // COEFICIENTES BASE (Múltiplos de riesgo)
-        var C_LINES = 4.0;
-        var C_HOLES = -1.0;
-        var C_ROUGH = -0.1;
-        var C_AGG = -0.5;
-        var C_MAXH = -2.0;
+        // Acumuladores de Costo
+        var holesCost = 0;      // Costo por Agujeros (Factor Crítico)
+        var roughnessCost = 0;  // Costo por Rugosidad (Factor Estabilidad)
+        var chimneyCost = 0;    // Costo por Chimenea (Factor Riesgo Estructural)
+        
+        // Variables de Estado del Tablero
+        var occupiedCells = 0;
+        var heights = [];           // Altura de cada columna
+        var holesInCol = [];        // Cantidad de agujeros en cada columna
+        var holesInRow = new Array(TOTAL_ROWS).fill(0); // Agujeros por fila
 
-        // 1. CÁLCULO DE ALTURAS, OCUPACIÓN y AGUJEROS PONDERADOS
+        // --- 2. ESCANEO DEL TABLERO (Métricas Físicas) ---
         for (var x = 0; x < TOTAL_COLS; x++) {
                 var colHeight = 0;
+                var colHoles = 0;
                 var blockFound = false;
 
                 for (var y = 0; y < TOTAL_ROWS; y++) {
+                        // Asumiendo grid[y][x] != 0 es ocupado. y=0 es techo.
                         var hasBlock = (grid[y][x] !== 0);
 
                         if (hasBlock) {
-                                occupiedCells++; // Suma celdas ocupadas
+                                occupiedCells++;
                                 if (!blockFound) {
-                                        // La primera pieza encontrada define la altura
-                                        colHeight = TOTAL_ROWS - y;
+                                        colHeight = TOTAL_ROWS - y; // Altura desde la base
                                         blockFound = true;
                                 }
                         } else if (blockFound) {
-                                // FACTOR AGUJEROS (Penalidad progresiva por altura)
-                                var holeWeight = (TOTAL_ROWS - y); // Distancia desde el techo
-                                holesScore += holeWeight;
+                                // HUECO DETECTADO (Vacío con bloque encima)
+                                colHoles++;       // Contador para la columna (Chimenea)
+                                holesInRow[y]++;  // Contador para la fila (Costo Agujeros)
                         }
                 }
                 heights.push(colHeight);
+                holesInCol.push(colHoles);
         }
 
-        // 2. CÁLCULO DE PONDERACIÓN DE BORDE (Factor de Riesgo de Chimenea)
-        var borderDiff = Math.abs(heights[0] - heights[TOTAL_COLS - 1]); // Diferencia H[0] - H[11]
+        // --- 3. CÁLCULO DE COSTOS HEURÍSTICOS ---
 
-        // Ponderación base de Altura (castigo central)
-        var center = (TOTAL_COLS - 1) / 2;
-        for (var i = 0; i < heights.length; i++) {
-                var dist = Math.abs(i - center);
-                var centerPenalty = 1 + (4 * (1 - (dist / center)));
-                aggHeightScore += (heights[i] * centerPenalty);
+        // A. COSTO DE AGUJEROS (Ponderación Cuadrática por Fila)
+        // Formula: Suma (AgujerosEnFila^2 * PesoAltura)
+        for (var y = 0; y < TOTAL_ROWS; y++) {
+                if (holesInRow[y] > 0) {
+                        var rowHeightWeight = TOTAL_ROWS - y; // 1 en base, 22 en techo
+                        // Penalidad cuadrática: premia filas limpias, castiga severamente filas sucias
+                        holesCost += (holesInRow[y] * holesInRow[y]) * rowHeightWeight;
+                }
         }
 
-        // 3. CÁLCULO DE RUGOSIDAD PONDERADA (Factor 3)
-        for (var i2 = 0; i2 < heights.length - 1; i2++) {
-                roughness += Math.abs(heights[i2] - heights[i2 + 1]);
+        // B. COSTO DE RUGOSIDAD (Ponderado por Ocupación)
+        // Formula: Suma(|DifAlturas|) * CeldasOcupadas * Coeficiente
+        var roughnessSum = 0;
+        for (var i = 0; i < TOTAL_COLS - 1; i++) {
+                roughnessSum += Math.abs(heights[i] - heights[i + 1]);
+        }
+        // Si el tablero está lleno, la rugosidad es más peligrosa (+0.1 base estimado)
+        roughnessCost = roughnessSum * occupiedCells * 0.1;
+
+        // C. COSTO POR CHIMENEA (Riesgo de Mantenimiento con Fallas)
+        // Condición: Diferencia de altura >= 4 con vecinos.
+        // Formula: AlturaChimenea * AgujerosEnChimenea
+        for (var x = 0; x < TOTAL_COLS; x++) {
+                // Definir altura de vecinos (Los bordes actúan como paredes de altura infinita/máxima)
+                var hLeft = (x === 0) ? TOTAL_ROWS : heights[x - 1];
+                var hRight = (x === TOTAL_COLS - 1) ? TOTAL_ROWS : heights[x + 1];
+
+                // Altura mínima de las paredes adyacentes
+                var minWallHeight = Math.min(hLeft, hRight);
+
+                // Verificar geometría de Pozo Profundo (Chimenea)
+                if (minWallHeight - heights[x] >= 4) {
+                        // Es una chimenea válida. Calcular Costo de Riesgo.
+                        // Si holesInCol[x] es 0, el costo es 0 (Ideal).
+                        // Si hay agujeros, el costo escala con la altura de la inversión.
+                        chimneyCost += (heights[x] * holesInCol[x]); 
+                }
         }
 
-        // CÁLCULO DE ALTURA MÁXIMA (Factor 5)
-        var maxHeight = Math.max.apply(null, heights);
+        // D. RECOMPENSA POR LÍNEAS (Reducción de Costo)
+        // Usamos un valor negativo grande para "restar" costo.
+        var linesReward = 0;
+        if (linesCleared > 0) {
+                // Base: 10,000 por línea
+                // Bonus cuadrático: favorece Tetris (4 líneas)
+                linesReward = linesCleared * 10000 + (linesCleared * linesCleared * 2000);
+        }
 
+        // --- 4. INTEGRACIÓN Y NORMALIZACIÓN DEL RIESGO ---
 
-        // --- APLICACIÓN DE LA FÓRMULA DINÁMICA FINAL ---
+        // Riesgo Local Base (RLB): % de Ocupación Física (0 a 100)
+        var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
 
-        // SCORE 1: LÍNEAS ELIMINADAS (Recompensa Dinámica)
-        // Recompensa = Líneas * [C_Líneas + Bonificación por Cantidad + Bonificación por Altura]
-        score += linesCleared * (C_LINES +
-                                (linesCleared * 1.0) + // Bonificación por Tetris (ej: 4 líneas * 1.0)
-                                (TOTAL_ROWS - highestClearedRow) * 0.1); // Bonificación por Altura de Limpieza
+        // Costo Heurístico Total (Suma de penalidades complejas)
+        var heuristicCost = holesCost + roughnessCost + chimneyCost;
 
-        // SCORE 2: AGUJEROS PONDERADOS
-        score += (holesScore * C_HOLES);
+        // Coeficiente de Sensibilidad (S): Escala el impacto heurístico sobre el riesgo base.
+        // Un valor de 500 significa que acumular 500 puntos de penalidad duplicará el riesgo percibido.
+        var S_SENSITIVITY = 500; 
 
-        // SCORE 3: RUGOSIDAD PONDERADA POR OCUPACIÓN
-        // Penalidad = Rugosidad * Ocupación * C_Rough
-        score += (roughness * occupiedCells * C_ROUGH);
+        // CÁLCULO FINAL (MINIMIZAR ESTE VALOR)
+        // Riesgo Final = RLB * (1 + CostoHeurístico/S) - Recompensa
+        var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
 
-        // SCORE 4: ALTURA AGREGADA PONDERADA POR DIFERENCIA DE BORDE
-        // Penalidad = Agg.Height * [C_Agg * (1.0 + Diferencia de Borde * Multiplicador)]
-        var dynamicAggMultiplier = C_AGG * (1.0 + borderDiff * 0.2);
-        score += (aggHeightScore * dynamicAggMultiplier);
-
-        // SCORE 5: ALTURA MÁXIMA
-        score += (maxHeight * C_MAXH);
-
-        return score;
-                        };
+        return totalRiskScore;
+};
 
 // --- SIMULACIÓN FÍSICA ---
 this.simulateDrop = function(rotation, targetX) {
