@@ -1747,28 +1747,26 @@ this.executeMoveSmoothly = function(move) {
 playStep();
 			};
 
-// --- MOTOR DE IA Y HEURÍSTICA ---
-
 this.calculateBestMove = function() {
-	var bestScore = -Infinity;
-	var bestMove = null;
+    var bestScore = Infinity; // INICIAR EN INFINITO (Para buscar el mínimo)
+    var bestMove = null;
 
-	for (var r = 0; r < 4; r++) {
-		for (var x = 0; x < self.tetris.areaX; x++) {
-			var simulation = self.simulateDrop(r, x);
-
-			if (simulation.isValid) {
-				var score = self.evaluateGrid(simulation.grid, simulation.linesCleared);
-
-				if (score > bestScore) {
-					bestScore = score;
-					bestMove = { rotation: r, x: x };
-				}
-		}
-}
-}
-return bestMove;
-			};
+    for (var r = 0; r < 4; r++) {
+        for (var x = 0; x < self.tetris.areaX; x++) {
+            var simulation = self.simulateDrop(r, x);
+            if (simulation.isValid) {
+                var score = self.evaluateGrid(simulation.grid, simulation.linesCleared);
+                
+                // CAMBIO AQUÍ: Buscar el MENOR score (Menor Riesgo)
+                if (score < bestScore) { 
+                    bestScore = score;
+                    bestMove = { rotation: r, x: x };
+                }
+            }
+        }
+    }
+    return bestMove;
+};
 
 this.evaluateGrid = function(grid, linesCleared) {
         // --- 1. DEFINICIÓN DE CONSTANTES Y VARIABLES ---
