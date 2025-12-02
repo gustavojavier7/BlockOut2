@@ -129,18 +129,23 @@
         tetris.areaX = 12;
         tetris.areaY = 22;
         tetris.updateResponsiveUnit();
-        
-		// 1. Inicializar Bot
-		var bot = new TetrisBot(tetris);
-		window.bot = bot;
 
-		var btnAi = document.getElementById("tetris-menu-ai");
-		if (btnAi) {
-			btnAi.onclick = function() {
-				bot.toggle();
-				this.blur();
-			};
-		}
+                // 1. Inicializar Bot (fallar rápido si no está disponible)
+                var bot = null;
+                if (typeof TetrisBot === "function") {
+                        bot = new TetrisBot(tetris);
+                        window.bot = bot;
+                } else {
+                        console.error("TetrisBot no está definido; el modo IA no se inicializó.");
+                }
+
+                var btnAi = document.getElementById("tetris-menu-ai");
+                if (btnAi && bot) {
+                        btnAi.onclick = function() {
+                                bot.toggle();
+                                this.blur();
+                        };
+                }
 
         </script>
 

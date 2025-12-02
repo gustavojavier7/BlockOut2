@@ -1969,3 +1969,8 @@ newGrid.unshift(emptyRow);
 return { grid: newGrid, lines: cleared };
 }
 }
+
+// Exponer el bot en el ámbito global para evitar referencias indefinidas
+if (typeof window !== 'undefined') {
+        window.TetrisBot = TetrisBot;
+}
