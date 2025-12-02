@@ -134,6 +134,143 @@ function Tetris()
 	this.highscores = new Highscores(10);
 	this.paused = false;
 
+	var SIDEBAR_UNITS = 9.5;
+	this.sidebarUnits = SIDEBAR_UNITS;
+
+	/**
+	 * Actualiza las variables de estilo CSS basadas en la unidad actual.
+	 * @return void
+	 * @access private
+	 */
+	this.updateCssScale = function()
+	{
+		var rootStyle = document.documentElement.style;
+		rootStyle.setProperty('--unit', self.unit + 'px');
+		rootStyle.setProperty('--area-x', self.areaX);
+		rootStyle.setProperty('--area-y', self.areaY);
+		rootStyle.setProperty('--sidebar-units', SIDEBAR_UNITS);
+
+		var areaEl = document.getElementById('tetris-area');
+		if (areaEl) {
+			var areaWidth = (self.unit * self.areaX) - 1;
+			var areaHeight = (self.unit * self.areaY) - 1;
+			areaEl.style.width = areaWidth + 'px';
+			areaEl.style.height = areaHeight + 'px';
+			areaEl.style.left = (self.unit * SIDEBAR_UNITS + 1) + 'px';
+			areaEl.style.top = '1px';
+		}
+
+		var tetrisEl = document.getElementById('tetris');
+		if (tetrisEl) {
+			var tetrisWidth = Math.ceil(self.unit * (self.areaX + SIDEBAR_UNITS)) + 1;
+			var tetrisHeight = (self.unit * self.areaY) + 1;
+			tetrisEl.style.width = tetrisWidth + 'px';
+			tetrisEl.style.height = tetrisHeight + 'px';
+		}
+
+		var sidebar = document.querySelector('#tetris .left');
+		if (sidebar) {
+			sidebar.style.width = Math.ceil(self.unit * SIDEBAR_UNITS) + 'px';
+		}
+
+		var border = document.querySelector('#tetris .left-border');
+		if (border) {
+			border.style.left = Math.ceil(self.unit * SIDEBAR_UNITS) + 'px';
+		}
+
+		var keys = document.getElementById('tetris-keys');
+		if (keys) {
+			keys.style.left = Math.round(self.unit * 1.8) + 'px';
+			keys.style.top = Math.round(self.unit * 9.6) + 'px';
+		}
+
+		var stats = document.querySelector('#tetris .left .stats');
+		if (stats) {
+			stats.style.left = Math.round(self.unit * 1.8) + 'px';
+			stats.style.bottom = Math.round(self.unit * 0.35) + 'px';
+		}
+
+		var next = document.getElementById('tetris-nextpuzzle');
+		if (next) {
+			next.style.width = Math.round(self.unit * 5) + 'px';
+			next.style.height = Math.round(self.unit * 4) + 'px';
+		}
+	};
+
+	/**
+	 * Reescala los elementos del tablero y de la siguiente pieza.
+	 * @return void
+	 * @access private
+	 */
+	this.rescaleBoard = function()
+	{
+		if (self.area) {
+			self.area.unit = self.unit;
+			for (var y = 0; y < self.area.board.length; y++) {
+				for (var x = 0; x < self.area.board[y].length; x++) {
+					if (self.area.board[y][x]) {
+						self.area.board[y][x].style.left = (x * self.area.unit) + 'px';
+						self.area.board[y][x].style.top = (y * self.area.unit) + 'px';
+					}
+				}
+			}
+		}
+
+		if (self.puzzle) {
+			var puzzleBoard = self.puzzle.board;
+			for (var y2 = 0; y2 < puzzleBoard.length; y2++) {
+				for (var x2 = 0; x2 < puzzleBoard[y2].length; x2++) {
+					if (puzzleBoard[y2][x2]) {
+						puzzleBoard[y2][x2].style.left = (self.puzzle.getX() + x2) * self.area.unit + 'px';
+						puzzleBoard[y2][x2].style.top = (self.puzzle.getY() + y2) * self.area.unit + 'px';
+					}
+				}
+			}
+
+			var nextContainer = document.getElementById('tetris-nextpuzzle');
+			if (nextContainer) {
+				nextContainer.innerHTML = '';
+				self.puzzle.nextElements = [];
+				var nextPuzzle = self.puzzle.puzzles[self.puzzle.nextType];
+				for (var ny = 0; ny < nextPuzzle.length; ny++) {
+					for (var nx = 0; nx < nextPuzzle[ny].length; nx++) {
+						if (nextPuzzle[ny][nx]) {
+							var nextEl = document.createElement('div');
+							nextEl.className = 'block' + self.puzzle.nextType;
+							nextEl.style.left = (nx * self.area.unit) + 'px';
+							nextEl.style.top = (ny * self.area.unit) + 'px';
+							nextContainer.appendChild(nextEl);
+							self.puzzle.nextElements.push(nextEl);
+						}
+					}
+				}
+			}
+		}
+	};
+
+	/**
+	 * Calcula el tamaño de la unidad en función del espacio disponible.
+	 * @return void
+	 * @access public
+	 */
+	this.updateResponsiveUnit = function()
+	{
+		var availableWidth = window.innerWidth * 0.9;
+		var availableHeight = window.innerHeight * 0.9;
+		var unitFromWidth = (availableWidth - 1) / (self.areaX + SIDEBAR_UNITS);
+		var unitFromHeight = (availableHeight - 1) / self.areaY;
+		var calculated = Math.max(10, Math.floor(Math.min(unitFromWidth, unitFromHeight)));
+
+		if (!calculated || calculated == self.unit) {
+			self.updateCssScale();
+			return;
+		}
+
+		self.unit = calculated;
+		self.updateCssScale();
+		self.rescaleBoard();
+	};
+
 	/**
 	 * @return void
 	 * @access public event
@@ -141,6 +278,7 @@ function Tetris()
 	this.start = function()
 	{
 		if (self.puzzle && !confirm('Are you sure you want to start a new game ?')) return;
+		self.updateResponsiveUnit();
 		self.reset();
 		self.stats.start();
 		document.getElementById("tetris-nextpuzzle").style.display = "block";

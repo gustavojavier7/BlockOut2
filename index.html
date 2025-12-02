@@ -123,11 +123,15 @@
 </td></tr></table>
 
 	<script	type="text/javascript">
-	var tetris = new Tetris();
-	tetris.unit = 14;
-	tetris.areaX = 12;
-	tetris.areaY = 22;
-	</script>
+        var tetris = new Tetris();
+        tetris.unit = 14;
+        tetris.areaX = 12;
+        tetris.areaY = 22;
+        tetris.updateResponsiveUnit();
+        window.addEventListener('resize', function() {
+                tetris.updateResponsiveUnit();
+        });
+        </script>
 
 </body>
 </html>
