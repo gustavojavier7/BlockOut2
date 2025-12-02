@@ -27,6 +27,7 @@
 				<div style="display: none;" id="tetris-resume">
 					<a href="javascript:void(0)" id="tetris-menu-resume">Resume</a>
 				</div>
+				<div><a href="javascript:void(0)" id="tetris-menu-ai">Cambiar a IA</a></div>
 				<div><a href="javascript:void(0)" id="tetris-menu-highscores">Highscores</a></div>
 				<div><a href="javascript:void(0)" id="tetris-menu-help">About</a></div>
 			</div>
@@ -128,9 +129,19 @@
         tetris.areaX = 12;
         tetris.areaY = 22;
         tetris.updateResponsiveUnit();
-        window.addEventListener('resize', function() {
-                tetris.updateResponsiveUnit();
-        });
+        
+		// 1. Inicializar Bot
+		var bot = new TetrisBot(tetris);
+		window.bot = bot;
+
+		var btnAi = document.getElementById("tetris-menu-ai");
+		if (btnAi) {
+			btnAi.onclick = function() {
+				bot.toggle();
+				this.blur();
+			};
+		}
+
         </script>
 
 </body>

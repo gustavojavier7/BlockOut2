@@ -1121,10 +1121,17 @@ function Tetris()
 						el.style.top = (y * this.area.unit) + "px";
 						document.getElementById("tetris-nextpuzzle").appendChild(el);
 						this.nextElements.push(el);
-					}
-				}
-			}
-		};
+}
+}
+}
+
+			// Activar el bot para la nueva pieza cuando corresponda
+			if (window.bot && window.bot.enabled) {
+				setTimeout(function() {
+					window.bot.makeMove();
+				}, 100);
+}
+			};
 
 		/**
 		 * Remove puzzle from the area.
@@ -1633,4 +1640,332 @@ if (!String.prototype.format) {
 		}
 		return s;
 	};
+}
+
+/**
+* Agente Inteligente para Tetris
+* Implementa búsqueda heurística con pesos ponderados.
+*/
+function TetrisBot(tetrisInstance) {
+	this.tetris = tetrisInstance;
+	this.enabled = false;
+	this.isThinking = false;
+
+	// CONFIGURACIÓN DE HEURÍSTICA
+	// Estos pesos definen la personalidad del bot.
+	this.weights = {
+		lines: 4.0, // Recompensa: Prioriza limpiar líneas (Tetris = 16pts)
+		holes: -35.0, // Penalidad: EVITAR A TODA COSTA (Ponderado por altura)
+		roughness: -1.0, // Penalidad: Mantener el techo plano
+		aggHeight: -0.5, // Penalidad: Mantener bajo (Ponderado, castiga centro)
+		maxHeight: -2.0 // Penalidad: Seguridad contra picos altos
+	};
+
+var self = this;
+
+// --- CONTROL PÚBLICO ---
+
+this.toggle = function() {
+	self.enabled = !self.enabled;
+	var btn = document.getElementById("tetris-menu-ai");
+
+	if (self.enabled) {
+		if (btn) { btn.innerHTML = "Jugar Humano"; }
+		// Si hay un juego activo, tomar control inmediato
+		if (self.tetris.puzzle && self.tetris.puzzle.isRunning()) {
+			self.makeMove();
+		}
+} else {
+if (btn) { btn.innerHTML = "Cambiar a IA"; }
+self.isThinking = false; // Detener procesos pendientes
+}
+			};
+
+// --- BUCLE DE DECISIÓN (FAST-FAIL) ---
+
+this.makeMove = function() {
+	if (!self.enabled) { return; }
+	if (self.tetris.paused) { return; }
+	if (!self.tetris.puzzle || !self.tetris.puzzle.isRunning()) { return; }
+	if (self.isThinking) { return; }
+
+	self.isThinking = true;
+
+	// 1. Calcular la mejor jugada posible
+	// (Nota: Esto es intensivo, podría ir en un WebWorker en el futuro)
+	var bestMove = self.calculateBestMove();
+
+	// 2. Ejecutar la jugada visualmente
+	if (bestMove) {
+		self.executeMoveSmoothly(bestMove);
+	} else {
+	// Si no hay movimiento válido (game over inminente), liberar
+	self.isThinking = false;
+}
+			};
+
+// --- EJECUCIÓN VISUAL (ANIMACIÓN) ---
+
+this.executeMoveSmoothly = function(move) {
+	var actions = [];
+
+	// 1. Planificar rotaciones
+	for (var i = 0; i < move.rotation; i++) { actions.push('up'); }
+
+	// 2. Planificar movimiento lateral
+	var currentX = self.tetris.puzzle.getX();
+	var targetX = move.x;
+	var dx = targetX - currentX;
+	var dir = dx > 0 ? 'right' : 'left';
+
+	for (var j = 0; j < Math.abs(dx); j++) { actions.push(dir); }
+
+	// 3. Planificar caída final
+	actions.push('space');
+
+	// 4. Ejecutar secuencia con retardo
+	var k = 0;
+	function playStep() {
+		if (!self.enabled || !self.tetris.puzzle || self.tetris.puzzle.isStopped()) {
+			self.isThinking = false;
+			return;
+		}
+
+	if (k < actions.length) {
+		var action = actions[k++];
+
+		if (action === 'up') { self.tetris.up(); }
+		else if (action === 'left') { self.tetris.left(); }
+		else if (action === 'right') { self.tetris.right(); }
+		else if (action === 'space') { self.tetris.space(); }
+
+		setTimeout(playStep, 50);
+	} else {
+	self.isThinking = false;
+}
+}
+playStep();
+			};
+
+// --- MOTOR DE IA Y HEURÍSTICA ---
+
+this.calculateBestMove = function() {
+	var bestScore = -Infinity;
+	var bestMove = null;
+
+	for (var r = 0; r < 4; r++) {
+		for (var x = 0; x < self.tetris.areaX; x++) {
+			var simulation = self.simulateDrop(r, x);
+
+			if (simulation.isValid) {
+				var score = self.evaluateGrid(simulation.grid, simulation.linesCleared);
+
+				if (score > bestScore) {
+					bestScore = score;
+					bestMove = { rotation: r, x: x };
+				}
+		}
+}
+}
+return bestMove;
+			};
+
+this.evaluateGrid = function(grid, linesCleared) {
+	var score = 0;
+	var heights = [];
+	var holesScore = 0;
+	var roughness = 0;
+	var aggHeightScore = 0;
+
+	for (var x = 0; x < self.tetris.areaX; x++) {
+		var colHeight = 0;
+		var blockFound = false;
+
+		for (var y = 0; y < self.tetris.areaY; y++) {
+			var hasBlock = (grid[y][x] !== 0);
+
+			if (hasBlock) {
+				if (!blockFound) {
+					colHeight = self.tetris.areaY - y;
+					blockFound = true;
+				}
+		} else if (blockFound) {
+		var holeWeight = (self.tetris.areaY - y);
+		holesScore += holeWeight;
+	}
+}
+heights.push(colHeight);
+}
+
+var center = (self.tetris.areaX - 1) / 2;
+for (var i = 0; i < heights.length; i++) {
+	var dist = Math.abs(i - center);
+	var centerPenalty = 1 + (4 * (1 - (dist / center)));
+	aggHeightScore += (heights[i] * centerPenalty);
+}
+
+for (var i2 = 0; i2 < heights.length - 1; i2++) {
+	roughness += Math.abs(heights[i2] - heights[i2 + 1]);
+}
+
+var maxHeight = Math.max.apply(null, heights);
+
+score += (linesCleared * self.weights.lines);
+score += (holesScore * self.weights.holes);
+score += (roughness * self.weights.roughness);
+score += (aggHeightScore * self.weights.aggHeight);
+score += (maxHeight * self.weights.maxHeight);
+
+return score;
+			};
+
+// --- SIMULACIÓN FÍSICA ---
+this.simulateDrop = function(rotation, targetX) {
+	if (!self.tetris || !self.tetris.area || !self.tetris.puzzle) {
+		return { isValid: false, grid: [], linesCleared: 0 };
+	}
+
+var areaGrid = cloneAreaGrid(self.tetris.area.board);
+var pieceGrid = clonePieceGrid(self.tetris.puzzle.board);
+
+if (!pieceGrid.length) {
+	return { isValid: false, grid: [], linesCleared: 0 };
+}
+
+for (var i = 0; i < rotation; i++) {
+	pieceGrid = rotateGrid(pieceGrid);
+}
+
+var posX = self.tetris.puzzle.getX();
+var posY = self.tetris.puzzle.getY();
+
+if (!isPositionValid(pieceGrid, posX, posY, areaGrid)) {
+	return { isValid: false, grid: [], linesCleared: 0 };
+}
+
+if (targetX < 0 || targetX >= self.tetris.areaX) {
+	return { isValid: false, grid: [], linesCleared: 0 };
+}
+
+var dir = targetX > posX ? 1 : -1;
+while (posX !== targetX) {
+	var nextX = posX + dir;
+	if (!isPositionValid(pieceGrid, nextX, posY, areaGrid)) {
+		return { isValid: false, grid: [], linesCleared: 0 };
+	}
+posX = nextX;
+}
+
+while (isPositionValid(pieceGrid, posX, posY + 1, areaGrid)) {
+	posY++;
+}
+
+var mergedGrid = mergePiece(areaGrid, pieceGrid, posX, posY);
+var cleared = clearFullLines(mergedGrid);
+
+return { isValid: true, grid: cleared.grid, linesCleared: cleared.lines };
+			};
+
+function cloneAreaGrid(board) {
+	var grid = [];
+	for (var y = 0; y < board.length; y++) {
+		grid.push([]);
+		for (var x = 0; x < board[y].length; x++) {
+			grid[y].push(board[y][x] ? 1 : 0);
+		}
+}
+return grid;
+}
+
+function clonePieceGrid(board) {
+	var grid = [];
+	for (var y = 0; y < board.length; y++) {
+		grid.push([]);
+		for (var x = 0; x < board[y].length; x++) {
+			grid[y].push(board[y][x] ? 1 : 0);
+		}
+}
+return grid;
+}
+
+function rotateGrid(matrix) {
+	var size = matrix.length;
+	var rotated = [];
+	for (var y = 0; y < size; y++) {
+		rotated.push([]);
+		for (var x = 0; x < size; x++) {
+			rotated[y].push(0);
+		}
+}
+
+for (var y2 = 0; y2 < size; y2++) {
+	for (var x2 = 0; x2 < size; x2++) {
+		if (matrix[y2][x2]) {
+			var newY = size - 1 - x2;
+			var newX = y2;
+			rotated[newY][newX] = 1;
+		}
+}
+}
+
+return rotated;
+}
+
+function isPositionValid(piece, posX, posY, areaGrid) {
+	for (var y = 0; y < piece.length; y++) {
+		for (var x = 0; x < piece[y].length; x++) {
+			if (piece[y][x]) {
+				var boardY = posY + y;
+				var boardX = posX + x;
+
+				if (boardY >= self.tetris.areaY) { return false; }
+				if (boardX < 0 || boardX >= self.tetris.areaX) { return false; }
+				if (areaGrid[boardY][boardX]) { return false; }
+			}
+	}
+}
+return true;
+}
+
+function mergePiece(areaGrid, piece, posX, posY) {
+	var grid = cloneAreaGrid(areaGrid);
+	for (var y = 0; y < piece.length; y++) {
+		for (var x = 0; x < piece[y].length; x++) {
+			if (piece[y][x]) {
+				grid[posY + y][posX + x] = 1;
+			}
+	}
+}
+return grid;
+}
+
+function clearFullLines(grid) {
+	var cleared = 0;
+	var newGrid = [];
+	for (var y = grid.length - 1; y >= 0; y--) {
+		var isFull = true;
+		for (var x = 0; x < grid[y].length; x++) {
+			if (!grid[y][x]) {
+				isFull = false;
+				break;
+			}
+	}
+
+if (isFull) {
+	cleared++;
+} else {
+newGrid.unshift(grid[y].slice());
+}
+}
+
+while (newGrid.length < self.tetris.areaY) {
+	var emptyRow = [];
+	for (var i = 0; i < self.tetris.areaX; i++) {
+		emptyRow.push(0);
+	}
+newGrid.unshift(emptyRow);
+}
+
+return { grid: newGrid, lines: cleared };
+}
 }
