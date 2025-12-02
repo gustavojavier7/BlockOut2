@@ -1774,22 +1774,25 @@ this.evaluateGrid = function(grid, linesCleared) {
         var TOTAL_COLS = self.tetris.areaX; // 12
         var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
         
-        // COEFICIENTES DE ESCALADO (AJUSTADOS PARA COMPENSACIÓN)
-        var HOLES_MULTIPLIER = 1000; // Multiplica Costo Agujeros x 1000
-        var ROUGHNESS_COEF = 1.0;   // Aumenta Rugosidad (antes 0.1)
-        var LINES_BASE_REWARD = 1000; // Base de la recompensa por línea (antes 10000)
+        // COEFICIENTES DE ESCALADO (Ajustados para la nueva supervivencia)
+        var HOLES_MULTIPLIER = 5000;    // Costo de Agujeros (Riesgo funcional)
+        var ROUGHNESS_COEF = 10.0;      // Costo de Rugosidad (Riesgo estructural)
+        var MAX_HEIGHT_COEF = 50.0;     // Costo de Altura Máxima (Riesgo de supervivencia)
+        var LINES_BASE_REWARD = 100;    // Recompensa base por línea (Reducción de Costo)
 
         // Acumuladores de Costo
-        var holesCost = 0;
-        var roughnessCost = 0; 
+        var holesCost = 0;      
+        var roughnessCost = 0;  
         var chimneyCost = 0;    
+        var maxHeightCost = 0; // NUEVO ACUMULADOR
         
         // Variables de Estado del Tablero
         var occupiedCells = 0;
         var heights = [];           
         var holesInCol = [];        
         var holesInRow = new Array(TOTAL_ROWS).fill(0); 
-        var highestClearedRow = TOTAL_ROWS; // Se asume limpieza en la base (fila 22)
+        var highestClearedRow = TOTAL_ROWS; 
+        var maxHeight = 0; // Se inicializa en 0
 
         // --- 2. ESCANEO Y CÁLCULO DE MÉTRICAS FÍSICAS ---
         for (var x = 0; x < TOTAL_COLS; x++) {
@@ -1805,8 +1808,14 @@ this.evaluateGrid = function(grid, linesCleared) {
                                 if (!blockFound) {
                                         colHeight = TOTAL_ROWS - y; 
                                         blockFound = true;
+                                        
+                                        // 📢 CÁLCULO DE ALTURA MÁXIMA (FACTOR 5)
+                                        if (colHeight > maxHeight) { 
+                                            maxHeight = colHeight;
+                                        }
                                 }
                         } else if (blockFound) {
+                                // HUECO DETECTADO
                                 colHoles++;       
                                 holesInRow[y]++;  
                         }
@@ -1821,10 +1830,8 @@ this.evaluateGrid = function(grid, linesCleared) {
         for (var y = 0; y < TOTAL_ROWS; y++) {
                 if (holesInRow[y] > 0) {
                         var rowHeightWeight = TOTAL_ROWS - y; 
-                        // Costo Total = (Densidad^2 * Altura) * Multiplicador 
                         holesCost += (holesInRow[y] * holesInRow[y]) * rowHeightWeight * HOLES_MULTIPLIER;
                         
-                        // Si es la fila más alta despejada (más cerca del techo), registrar su y
                         if (y < highestClearedRow) {
                                 highestClearedRow = y;
                         }
@@ -1836,7 +1843,6 @@ this.evaluateGrid = function(grid, linesCleared) {
         for (var i = 0; i < TOTAL_COLS - 1; i++) {
                 roughnessSum += Math.abs(heights[i] - heights[i + 1]);
         }
-        // Multiplicar por el coeficiente aumentado (1.0) para que sea un castigo serio
         roughnessCost = roughnessSum * occupiedCells * ROUGHNESS_COEF; 
 
         // C. COSTO POR CHIMENEA (Riesgo de Mantenimiento con Fallas)
@@ -1846,19 +1852,19 @@ this.evaluateGrid = function(grid, linesCleared) {
                 var minWallHeight = Math.min(hLeft, hRight);
 
                 if (minWallHeight - heights[x] >= 4) {
+                        // Costo = Altura Chimenea * Agujeros en Chimenea
                         chimneyCost += (heights[x] * holesInCol[x]); 
                 }
         }
+        
+        // 📢 D. COSTO DE ALTURA MÁXIMA (NUEVA PENALIDAD DE SUPERVIVENCIA)
+        maxHeightCost = maxHeight * MAX_HEIGHT_COEF;
 
-        // D. RECOMPENSA POR LÍNEAS (Reducción de Costo — Reducida)
+        // E. RECOMPENSA POR LÍNEAS (Reducción de Costo)
         var linesReward = 0;
         if (linesCleared > 0) {
-                // Base: 1000 por línea
-                // Bonus cuadrático: +500 por cada línea eliminada simultáneamente
                 var baseReward = linesCleared * LINES_BASE_REWARD;
                 var bonusReward = linesCleared * linesCleared * 500;
-                
-                // Bonificación por Altura de Limpieza (se resta del costo)
                 var heightBonus = (TOTAL_ROWS - highestClearedRow) * 100;
                 
                 linesReward = baseReward + bonusReward + heightBonus;
@@ -1869,14 +1875,13 @@ this.evaluateGrid = function(grid, linesCleared) {
         // Riesgo Local Base (RLB): % de Ocupación Física (0 a 100)
         var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
 
-        // Costo Heurístico Total (Suma de penalidades complejas)
-        var heuristicCost = holesCost + roughnessCost + chimneyCost;
+        // Costo Heurístico Total (Suma de TODAS las penalidades)
+        var heuristicCost = holesCost + roughnessCost + chimneyCost + maxHeightCost; // MAX HEIGHT AÑADIDO
 
-        // Coeficiente de Sensibilidad (S): Se mantiene en 500, pero los costos son miles de veces mayores
+        // Coeficiente de Sensibilidad (S)
         var S_SENSITIVITY = 500; 
 
         // CÁLCULO FINAL (MINIMIZAR ESTE VALOR)
-        // El bot ahora es fuertemente Anti-Agujeros (Costo Agujeros >> Recompensa Líneas)
         var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
 
         return totalRiskScore;
