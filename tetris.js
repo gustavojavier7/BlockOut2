@@ -1651,15 +1651,14 @@ function TetrisBot(tetrisInstance) {
 	this.enabled = false;
 	this.isThinking = false;
 
-	// CONFIGURACIÓN DE HEURÍSTICA
-	// Estos pesos definen la personalidad del bot.
+        // CONFIGURACIÓN DE HEURÍSTICA
+        // Estos pesos definen la personalidad del bot.
         this.weights = {
-                lines: 4.0, // Recompensa: Prioriza limpiar líneas (Tetris = 16pts)
-                holes: -35.0, // Penalidad: EVITAR A TODA COSTA (Ponderado por altura)
-                roughness: -1.0, // Penalidad: Mantener el techo plano
-                aggHeight: -0.5, // Penalidad: Mantener bajo (Ponderado, castiga centro)
-                maxHeight: -2.0, // Penalidad: Seguridad contra picos altos
-                chimneyDynamic: -10.0 // Penalidad dinámica por altura peligrosa de chimenea
+                lines: 4.0, // Recompensa: prioriza limpiar líneas (Tetris = 16pts)
+                holes: -1.0, // Penalidad: ponderación base para huecos por altura
+                roughness: -0.1, // Penalidad: rugosidad ponderada por ocupación
+                aggHeight: -0.5, // Penalidad: altura agregada ponderada por diferencia de borde
+                maxHeight: -2.0 // Penalidad: seguridad contra picos altos
         };
 
 var self = this;
@@ -1772,71 +1771,93 @@ return bestMove;
 			};
 
 this.evaluateGrid = function(grid, linesCleared) {
-	var score = 0;
-	var heights = [];
-	var holesScore = 0;
-	var roughness = 0;
-	var aggHeightScore = 0;
+        var score = 0;
+        var heights = [];
+        var occupiedCells = 0; // Nuevo Factor: Ocupación
+        var holesScore = 0;
+        var roughness = 0;
+        var aggHeightScore = 0;
+        var highestClearedRow = self.tetris.areaY; // Inicializado al fondo
 
-	for (var x = 0; x < self.tetris.areaX; x++) {
-		var colHeight = 0;
-		var blockFound = false;
+        var TOTAL_ROWS = self.tetris.areaY; // 22
+        var TOTAL_COLS = self.tetris.areaX; // 12
 
-		for (var y = 0; y < self.tetris.areaY; y++) {
-			var hasBlock = (grid[y][x] !== 0);
+        // COEFICIENTES BASE (Múltiplos de riesgo)
+        var C_LINES = 4.0;
+        var C_HOLES = -1.0;
+        var C_ROUGH = -0.1;
+        var C_AGG = -0.5;
+        var C_MAXH = -2.0;
 
-			if (hasBlock) {
-				if (!blockFound) {
-					colHeight = self.tetris.areaY - y;
-					blockFound = true;
-				}
-		} else if (blockFound) {
-		var holeWeight = (self.tetris.areaY - y);
-		holesScore += holeWeight;
-	}
-}
-heights.push(colHeight);
-}
+        // 1. CÁLCULO DE ALTURAS, OCUPACIÓN y AGUJEROS PONDERADOS
+        for (var x = 0; x < TOTAL_COLS; x++) {
+                var colHeight = 0;
+                var blockFound = false;
 
-        var center = (self.tetris.areaX - 1) / 2;
+                for (var y = 0; y < TOTAL_ROWS; y++) {
+                        var hasBlock = (grid[y][x] !== 0);
+
+                        if (hasBlock) {
+                                occupiedCells++; // Suma celdas ocupadas
+                                if (!blockFound) {
+                                        // La primera pieza encontrada define la altura
+                                        colHeight = TOTAL_ROWS - y;
+                                        blockFound = true;
+                                }
+                        } else if (blockFound) {
+                                // FACTOR AGUJEROS (Penalidad progresiva por altura)
+                                var holeWeight = (TOTAL_ROWS - y); // Distancia desde el techo
+                                holesScore += holeWeight;
+                        }
+                }
+                heights.push(colHeight);
+        }
+
+        // 2. CÁLCULO DE PONDERACIÓN DE BORDE (Factor de Riesgo de Chimenea)
+        var borderDiff = Math.abs(heights[0] - heights[TOTAL_COLS - 1]); // Diferencia H[0] - H[11]
+
+        // Ponderación base de Altura (castigo central)
+        var center = (TOTAL_COLS - 1) / 2;
         for (var i = 0; i < heights.length; i++) {
                 var dist = Math.abs(i - center);
                 var centerPenalty = 1 + (4 * (1 - (dist / center)));
                 aggHeightScore += (heights[i] * centerPenalty);
         }
 
+        // 3. CÁLCULO DE RUGOSIDAD PONDERADA (Factor 3)
         for (var i2 = 0; i2 < heights.length - 1; i2++) {
                 roughness += Math.abs(heights[i2] - heights[i2 + 1]);
         }
 
+        // CÁLCULO DE ALTURA MÁXIMA (Factor 5)
         var maxHeight = Math.max.apply(null, heights);
-        var minHeight = Math.min.apply(null, heights);
 
-        // Penalidad dinámica de chimenea: activa solo cuando la columna más baja supera el umbral
-        var chimneyDynamicPenalty = 0;
-        var TOTAL_ROWS = self.tetris.areaY; // Altura total del tablero (22)
-        var UMBRAL_CRITICO = 18; // Deja 4 filas libres
 
-        if (minHeight > UMBRAL_CRITICO) {
-                var penaltyBase = minHeight - UMBRAL_CRITICO;
-                var safetyMargin = TOTAL_ROWS - maxHeight;
+        // --- APLICACIÓN DE LA FÓRMULA DINÁMICA FINAL ---
 
-                if (safetyMargin < 1) {
-                        safetyMargin = 1;
-                }
+        // SCORE 1: LÍNEAS ELIMINADAS (Recompensa Dinámica)
+        // Recompensa = Líneas * [C_Líneas + Bonificación por Cantidad + Bonificación por Altura]
+        score += linesCleared * (C_LINES +
+                                (linesCleared * 1.0) + // Bonificación por Tetris (ej: 4 líneas * 1.0)
+                                (TOTAL_ROWS - highestClearedRow) * 0.1); // Bonificación por Altura de Limpieza
 
-                chimneyDynamicPenalty = penaltyBase / safetyMargin;
-        }
+        // SCORE 2: AGUJEROS PONDERADOS
+        score += (holesScore * C_HOLES);
 
-        score += (linesCleared * self.weights.lines);
-        score += (holesScore * self.weights.holes);
-        score += (roughness * self.weights.roughness);
-        score += (aggHeightScore * self.weights.aggHeight);
-        score += (maxHeight * self.weights.maxHeight);
-        score += (chimneyDynamicPenalty * self.weights.chimneyDynamic);
+        // SCORE 3: RUGOSIDAD PONDERADA POR OCUPACIÓN
+        // Penalidad = Rugosidad * Ocupación * C_Rough
+        score += (roughness * occupiedCells * C_ROUGH);
+
+        // SCORE 4: ALTURA AGREGADA PONDERADA POR DIFERENCIA DE BORDE
+        // Penalidad = Agg.Height * [C_Agg * (1.0 + Diferencia de Borde * Multiplicador)]
+        var dynamicAggMultiplier = C_AGG * (1.0 + borderDiff * 0.2);
+        score += (aggHeightScore * dynamicAggMultiplier);
+
+        // SCORE 5: ALTURA MÁXIMA
+        score += (maxHeight * C_MAXH);
 
         return score;
-			};
+                        };
 
 // --- SIMULACIÓN FÍSICA ---
 this.simulateDrop = function(rotation, targetX) {
