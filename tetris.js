@@ -1791,11 +1791,11 @@ this.evaluateGrid = function(grid, linesCleared) {
     var WORST_AGG_HEIGHT = TOTAL_COLS * TOTAL_ROWS; // 264
     
     // --- COEFICIENTES DE PREFERENCIA (TODOS EN 1.0) ---
-    var HOLES_PREFERENCE = 1.0;
-    var ROUGHNESS_PREFERENCE = 1.0;
+    var HOLES_PREFERENCE = 5.0;
+    var ROUGHNESS_PREFERENCE = 4.0;
     var CHIMNEY_PREFERENCE = 1.0;
-    var MAX_HEIGHT_PREFERENCE = 1.0;
-    var AGG_HEIGHT_PREFERENCE = 1.0;
+    var MAX_HEIGHT_PREFERENCE = 2.0;
+    var AGG_HEIGHT_PREFERENCE = 3.0;
     
     // --- ACUMULADORES ---
     var holesCostRaw = 0;
