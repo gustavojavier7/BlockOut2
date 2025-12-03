@@ -131,10 +131,11 @@ function Tetris()
 	this.areaX = 20; // area width = x units
 	this.areaY = 20; // area height = y units
 
-	this.highscores = new Highscores(10);
-	this.paused = false;
+        this.highscores = new Highscores(10);
+        this.paused = false;
+        this.zenMode = false; // Modo ZEN desactivado por defecto
 
-	var SIDEBAR_UNITS = 9.5;
+        var SIDEBAR_UNITS = 9.5;
 	this.sidebarUnits = SIDEBAR_UNITS;
 
 	/**
@@ -462,23 +463,39 @@ function Tetris()
 	//document.getElementById("tetris-keyboard-left").onclick = function () { self.left(); this.blur(); };
 	//document.getElementById("tetris-keyboard-right").onclick = function() { self.right(); this.blur(); };
 
-	// keyboard
-	var keyboard = new Keyboard();
-	keyboard.set(keyboard.n, this.start);
-	//keyboard.set(keyboard.r, this.reset);
-	keyboard.set(keyboard.p, this.pause);
-	keyboard.set(keyboard.up, this.up);
-	keyboard.set(keyboard.down, this.down);
-	keyboard.set(keyboard.left, this.left);
-	keyboard.set(keyboard.right, this.right);
-	keyboard.set(keyboard.space, this.space);
-	document.onkeydown = keyboard.event;
+        // keyboard
+        var keyboard = new Keyboard();
+        keyboard.set(keyboard.n, this.start);
+        //keyboard.set(keyboard.r, this.reset);
+        keyboard.set(keyboard.p, this.pause);
+        keyboard.set(keyboard.up, this.up);
+        keyboard.set(keyboard.down, this.down);
+        keyboard.set(keyboard.left, this.left);
+        keyboard.set(keyboard.right, this.right);
+        keyboard.set(keyboard.space, this.space);
+        document.onkeydown = keyboard.event;
 
-	/**
-	 * Window replaces game area, for example help window
-	 * @param string id
-	 */
-	function Window(id)
+        // Modo ZEN: controla la velocidad fija de caída
+        var zenCheckbox = document.getElementById("tetris-zen-mode");
+        if (zenCheckbox) {
+                zenCheckbox.onchange = function()
+                {
+                        self.zenMode = this.checked;
+
+                        // Aplicar la nueva velocidad inmediatamente si el juego está corriendo
+                        if (self.puzzle && self.puzzle.isRunning() && self.puzzle.fallDownID) {
+                                self.puzzle.speed = self.zenMode ? 1000 : (80 + (700 / self.stats.getLevel()));
+                                clearTimeout(self.puzzle.fallDownID);
+                                self.puzzle.fallDownID = setTimeout(self.puzzle.fallDown, self.puzzle.speed);
+                        }
+                };
+        }
+
+        /**
+         * Window replaces game area, for example help window
+         * @param string id
+         */
+        function Window(id)
 	{
 		this.id = id;
 		this.el = document.getElementById(this.id);
@@ -971,12 +988,16 @@ function Tetris()
 			if (this.forceMoveDownID) {
 				clearTimeout(this.forceMoveDownID);
 			}
-			this.type = this.nextType;
-			this.nextType = random(this.puzzles.length);
-			this.position = 0;
-			this.speed = 80 + (700 / this.tetris.stats.getLevel());
-			this.running = false;
-			this.stopped = false;
+                        this.type = this.nextType;
+                        this.nextType = random(this.puzzles.length);
+                        this.position = 0;
+                        if (this.tetris.zenMode) {
+                                this.speed = 1000;
+                        } else {
+                                this.speed = 80 + (700 / this.tetris.stats.getLevel());
+                        }
+                        this.running = false;
+                        this.stopped = false;
 			this.board = [];
 			this.elements = [];
 			for (var i = 0; i < this.nextElements.length; i++) {
