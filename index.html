@@ -19,18 +19,22 @@
 	<div id="tetris">
 		<div class="left">
 			<h1><a href="https://github.com/cztomczak/jstetris">Js	Tetris 1.66</a></h1>
-			<div class="menu">
-				<div><a href="javascript:void(0)" id="tetris-menu-start">New Game</a></div>
-				<div id="tetris-pause">
-					<a href="javascript:void(0)" id="tetris-menu-pause">Pause</a>
-				</div>
-				<div style="display: none;" id="tetris-resume">
-					<a href="javascript:void(0)" id="tetris-menu-resume">Resume</a>
-				</div>
-				<div><a href="javascript:void(0)" id="tetris-menu-ai">Cambiar a IA</a></div>
-				<div><a href="javascript:void(0)" id="tetris-menu-highscores">Highscores</a></div>
-				<div><a href="javascript:void(0)" id="tetris-menu-help">About</a></div>
-			</div>
+                        <div class="menu">
+                                <div><a href="javascript:void(0)" id="tetris-menu-start">New Game</a></div>
+                                <div id="tetris-pause">
+                                        <a href="javascript:void(0)" id="tetris-menu-pause">Pause</a>
+                                </div>
+                                <div style="display: none;" id="tetris-resume">
+                                        <a href="javascript:void(0)" id="tetris-menu-resume">Resume</a>
+                                </div>
+                                <div><a href="javascript:void(0)" id="tetris-menu-ai">Cambiar a IA</a></div>
+                                <div style="padding-top: 5px; padding-bottom: 5px; padding-left: 15px;">
+                                        <input type="checkbox" id="tetris-zen-mode">
+                                        <label for="tetris-zen-mode" style="font-size: 11px;">Modo ZEN (1 celda/s)</label>
+                                </div>
+                                <div><a href="javascript:void(0)" id="tetris-menu-highscores">Highscores</a></div>
+                                <div><a href="javascript:void(0)" id="tetris-menu-help">About</a></div>
+                        </div>
 			<div id="tetris-nextpuzzle"></div>
 			<div id="tetris-gameover">Game Over</div>
 			<div id="tetris-keys">
