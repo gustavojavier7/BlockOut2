@@ -1769,142 +1769,142 @@ this.calculateBestMove = function() {
 };
 
 this.evaluateGrid = function(grid, linesCleared) {
-    var TOTAL_ROWS = self.tetris.areaY; // 22
-    var TOTAL_COLS = self.tetris.areaX; // 12
-    var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
-    
-    var COMMON_SCALE = 10000;
-    
-    // --- PEORES CASOS ---
-    var WORST_HOLES_COST = 36 * (TOTAL_ROWS * (TOTAL_ROWS + 1) / 2); // 9,108
-    var WORST_ROUGHNESS_COST = (TOTAL_COLS - 1) * TOTAL_ROWS * MAX_RISK_CELLS; // 63,888
-    
-    // CHIMENEA ACTUALIZADA CON ALTURA DE BASE
-    var MAX_CHIMNEYS = 4;
-    var MAX_CHIMNEY_DEPTH = 4;
-    var MAX_BASE_HEIGHT = TOTAL_ROWS; // 22
-    var MAX_HOLES_PER_CHIMNEY = 20;
-    var WORST_CHIMNEY_COST = MAX_CHIMNEYS * MAX_CHIMNEY_DEPTH * (MAX_BASE_HEIGHT + MAX_HOLES_PER_CHIMNEY);
-    // = 4 × 4 × 42 = 672
-    
-    var WORST_MAX_HEIGHT = TOTAL_ROWS; // 22
-    var WORST_AGG_HEIGHT = TOTAL_COLS * TOTAL_ROWS; // 264
-    
-    // --- COEFICIENTES DE PREFERENCIA ---
-    var HOLES_PREFERENCE = 1.5;
-    var ROUGHNESS_PREFERENCE = 1.0;
-    var CHIMNEY_PREFERENCE = 1.3;
-    var MAX_HEIGHT_PREFERENCE = 2.0;
-    var AGG_HEIGHT_PREFERENCE = 0.8;
-    
-    // --- ACUMULADORES ---
-    var holesCostRaw = 0;
-    var roughnessCostRaw = 0;
-    var chimneyCostRaw = 0;
-    var maxHeight = 0;
-    var aggregateHeight = 0;
-    var occupiedCells = 0;
-    
-    var heights = [];
-    var holesInCol = [];
-    var holesInRow = new Array(TOTAL_ROWS).fill(0);
-    var highestClearedRow = TOTAL_ROWS;
-    
-    // --- ESCANEO DEL TABLERO ---
-    for (var x = 0; x < TOTAL_COLS; x++) {
-        var colHeight = 0;
-        var colHoles = 0;
-        var blockFound = false;
-        
-        for (var y = 0; y < TOTAL_ROWS; y++) {
-            var hasBlock = (grid[y][x] !== 0);
-            
-            if (hasBlock) {
-                occupiedCells++;
-                if (!blockFound) {
-                    colHeight = TOTAL_ROWS - y;
-                    blockFound = true;
-                    if (colHeight > maxHeight) {
-                        maxHeight = colHeight;
-                    }
-                }
-            } else if (blockFound) {
-                colHoles++;
-                holesInRow[y]++;
-            }
-        }
-        
-        heights.push(colHeight);
-        holesInCol.push(colHoles);
-        aggregateHeight += colHeight;
-    }
-    
-    // --- COSTOS BRUTOS ---
-    
-    // A. AGUJEROS
-    for (var y = 0; y < TOTAL_ROWS; y++) {
-        if (holesInRow[y] > 0) {
-            var rowHeightWeight = TOTAL_ROWS - y;
-            holesCostRaw += (holesInRow[y] * holesInRow[y]) * rowHeightWeight;
-            
-            if (y < highestClearedRow) {
-                highestClearedRow = y;
-            }
-        }
-    }
-    
-    // B. RUGOSIDAD
-    var roughnessSum = 0;
-    for (var i = 0; i < TOTAL_COLS - 1; i++) {
-        roughnessSum += Math.abs(heights[i] - heights[i + 1]);
-    }
-    roughnessCostRaw = roughnessSum * occupiedCells;
-    
-    // C. CHIMENEAS (CORREGIDO CON ALTURA DE BASE)
-    for (var x = 0; x < TOTAL_COLS; x++) {
-        var hLeft = (x === 0) ? TOTAL_ROWS : heights[x - 1];
-        var hRight = (x === TOTAL_COLS - 1) ? TOTAL_ROWS : heights[x + 1];
-        var minWallHeight = Math.min(hLeft, hRight);
-        
-        var chimneyDepth = minWallHeight - heights[x];
-        
-        if (chimneyDepth >= 4) {
-            // CORRECCIÓN: Incorporar altura de la base de la chimenea
-            var baseHeight = heights[x]; // Altura de la columna chimenea
-            
-            // Fórmula: profundidad × (altura_base + agujeros)
-            chimneyCostRaw += chimneyDepth * (baseHeight + holesInCol[x]);
-        }
-    }
-    
-    // --- NORMALIZACIÓN ---
-    var holesCostNormalized = (holesCostRaw / WORST_HOLES_COST) * COMMON_SCALE * HOLES_PREFERENCE;
-    var roughnessCostNormalized = (roughnessCostRaw / WORST_ROUGHNESS_COST) * COMMON_SCALE * ROUGHNESS_PREFERENCE;
-    var chimneyCostNormalized = (chimneyCostRaw / WORST_CHIMNEY_COST) * COMMON_SCALE * CHIMNEY_PREFERENCE;
-    var maxHeightCostNormalized = (maxHeight / WORST_MAX_HEIGHT) * COMMON_SCALE * MAX_HEIGHT_PREFERENCE;
-    var aggHeightCostNormalized = (aggregateHeight / WORST_AGG_HEIGHT) * COMMON_SCALE * AGG_HEIGHT_PREFERENCE;
-    
-    var heuristicCost = holesCostNormalized + 
-                       roughnessCostNormalized + 
-                       chimneyCostNormalized + 
-                       maxHeightCostNormalized + 
-                       aggHeightCostNormalized;
-    
-    // --- RECOMPENSA POR LÍNEAS ---
-    var linesReward = 0;
-    if (linesCleared > 0) {
-        var baseReward = linesCleared * 100;
-        var bonusReward = linesCleared * linesCleared * 500;
-        var heightBonus = (TOTAL_ROWS - highestClearedRow) * 100;
-        linesReward = baseReward + bonusReward + heightBonus;
-    }
-    
-    // --- CÁLCULO FINAL ---
-    var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
-    var S_SENSITIVITY = 5000;
-    var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
-    
-    return totalRiskScore;
+    var TOTAL_ROWS = self.tetris.areaY; // 22
+    var TOTAL_COLS = self.tetris.areaX; // 12
+    var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
+    
+    var COMMON_SCALE = 10000;
+    
+    // --- PEORES CASOS ---
+    var WORST_HOLES_COST = 36 * (TOTAL_ROWS * (TOTAL_ROWS + 1) / 2); // 9,108
+    var WORST_ROUGHNESS_COST = (TOTAL_COLS - 1) * TOTAL_ROWS * MAX_RISK_CELLS; // 63,888
+    
+    // CHIMENEA ACTUALIZADA CON ALTURA DE BASE
+    var MAX_CHIMNEYS = 4;
+    var MAX_CHIMNEY_DEPTH = 4;
+    var MAX_BASE_HEIGHT = TOTAL_ROWS; // 22
+    var MAX_HOLES_PER_CHIMNEY = 20;
+    var WORST_CHIMNEY_COST = MAX_CHIMNEYS * MAX_CHIMNEY_DEPTH * (MAX_BASE_HEIGHT + MAX_HOLES_PER_CHIMNEY);
+    // = 4 × 4 × 42 = 672
+    
+    var WORST_MAX_HEIGHT = TOTAL_ROWS; // 22
+    var WORST_AGG_HEIGHT = TOTAL_COLS * TOTAL_ROWS; // 264
+    
+    // --- COEFICIENTES DE PREFERENCIA (TODOS EN 1.0) ---
+    var HOLES_PREFERENCE = 1.0;
+    var ROUGHNESS_PREFERENCE = 1.0;
+    var CHIMNEY_PREFERENCE = 1.0;
+    var MAX_HEIGHT_PREFERENCE = 1.0;
+    var AGG_HEIGHT_PREFERENCE = 1.0;
+    
+    // --- ACUMULADORES ---
+    var holesCostRaw = 0;
+    var roughnessCostRaw = 0;
+    var chimneyCostRaw = 0;
+    var maxHeight = 0;
+    var aggregateHeight = 0;
+    var occupiedCells = 0;
+    
+    var heights = [];
+    var holesInCol = [];
+    var holesInRow = new Array(TOTAL_ROWS).fill(0);
+    var highestClearedRow = TOTAL_ROWS;
+    
+    // --- ESCANEO DEL TABLERO ---
+    for (var x = 0; x < TOTAL_COLS; x++) {
+        var colHeight = 0;
+        var colHoles = 0;
+        var blockFound = false;
+        
+        for (var y = 0; y < TOTAL_ROWS; y++) {
+            var hasBlock = (grid[y][x] !== 0);
+            
+            if (hasBlock) {
+                occupiedCells++;
+                if (!blockFound) {
+                    colHeight = TOTAL_ROWS - y;
+                    blockFound = true;
+                    if (colHeight > maxHeight) {
+                        maxHeight = colHeight;
+                    }
+                }
+            } else if (blockFound) {
+                colHoles++;
+                holesInRow[y]++;
+            }
+        }
+        
+        heights.push(colHeight);
+        holesInCol.push(colHoles);
+        aggregateHeight += colHeight;
+    }
+    
+    // --- COSTOS BRUTOS ---
+    
+    // A. AGUJEROS
+    for (var y = 0; y < TOTAL_ROWS; y++) {
+        if (holesInRow[y] > 0) {
+            var rowHeightWeight = TOTAL_ROWS - y;
+            holesCostRaw += (holesInRow[y] * holesInRow[y]) * rowHeightWeight;
+            
+            if (y < highestClearedRow) {
+                highestClearedRow = y;
+            }
+        }
+    }
+    
+    // B. RUGOSIDAD
+    var roughnessSum = 0;
+    for (var i = 0; i < TOTAL_COLS - 1; i++) {
+        roughnessSum += Math.abs(heights[i] - heights[i + 1]);
+    }
+    roughnessCostRaw = roughnessSum * occupiedCells;
+    
+    // C. CHIMENEAS (CORREGIDO CON ALTURA DE BASE)
+    for (var x = 0; x < TOTAL_COLS; x++) {
+        var hLeft = (x === 0) ? TOTAL_ROWS : heights[x - 1];
+        var hRight = (x === TOTAL_COLS - 1) ? TOTAL_ROWS : heights[x + 1];
+        var minWallHeight = Math.min(hLeft, hRight);
+        
+        var chimneyDepth = minWallHeight - heights[x];
+        
+        if (chimneyDepth >= 4) {
+            // CORRECCIÓN: Incorporar altura de la base de la chimenea
+            var baseHeight = heights[x]; // Altura de la columna chimenea
+            
+            // Fórmula: profundidad × (altura_base + agujeros)
+            chimneyCostRaw += chimneyDepth * (baseHeight + holesInCol[x]);
+        }
+    }
+    
+    // --- NORMALIZACIÓN ---
+    var holesCostNormalized = (holesCostRaw / WORST_HOLES_COST) * COMMON_SCALE * HOLES_PREFERENCE;
+    var roughnessCostNormalized = (roughnessCostRaw / WORST_ROUGHNESS_COST) * COMMON_SCALE * ROUGHNESS_PREFERENCE;
+    var chimneyCostNormalized = (chimneyCostRaw / WORST_CHIMNEY_COST) * COMMON_SCALE * CHIMNEY_PREFERENCE;
+    var maxHeightCostNormalized = (maxHeight / WORST_MAX_HEIGHT) * COMMON_SCALE * MAX_HEIGHT_PREFERENCE;
+    var aggHeightCostNormalized = (aggregateHeight / WORST_AGG_HEIGHT) * COMMON_SCALE * AGG_HEIGHT_PREFERENCE;
+    
+    var heuristicCost = holesCostNormalized + 
+                       roughnessCostNormalized + 
+                       chimneyCostNormalized + 
+                       maxHeightCostNormalized + 
+                       aggHeightCostNormalized;
+    
+    // --- RECOMPENSA POR LÍNEAS ---
+    var linesReward = 0;
+    if (linesCleared > 0) {
+        var baseReward = linesCleared * 100;
+        var bonusReward = linesCleared * linesCleared * 500;
+        var heightBonus = (TOTAL_ROWS - highestClearedRow) * 100;
+        linesReward = baseReward + bonusReward + heightBonus;
+    }
+    
+    // --- CÁLCULO FINAL ---
+    var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
+    var S_SENSITIVITY = 5000;
+    var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
+    
+    return totalRiskScore;
 };
 
 // --- SIMULACIÓN FÍSICA ---
