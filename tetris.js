@@ -1791,9 +1791,9 @@ this.evaluateGrid = function(grid, linesCleared) {
     var WORST_AGG_HEIGHT = TOTAL_COLS * TOTAL_ROWS; // 264
     
     // --- COEFICIENTES DE PREFERENCIA ---
-    var HOLES_PREFERENCE = 5.0; // Máxima aversión a agujeros
+    var HOLES_PREFERENCE = 5.0; 
     var ROUGHNESS_PREFERENCE = 4.0;
-    var CHIMNEY_PREFERENCE = 1.0; // Mínima aversión a la chimenea
+    var CHIMNEY_PREFERENCE = 1.0; 
     var MAX_HEIGHT_PREFERENCE = 3.0;
     var AGG_HEIGHT_PREFERENCE = 2.0;
     
@@ -1875,8 +1875,6 @@ this.evaluateGrid = function(grid, linesCleared) {
         }
     }
     
-    // --- LÓGICA DE SUPER PENALIZACIÓN Y RECOMPENSA (IMPLEMENTACIÓN DE PRIORIDAD) ---
-    var HOLE_SUPER_PENALTY = 1000000;
     // La jugada tiene agujeros si el costo bruto de agujeros es mayor a 0.
     var hasHolesAfterMove = (holesCostRaw > 0);
 
@@ -1893,17 +1891,11 @@ this.evaluateGrid = function(grid, linesCleared) {
                        maxHeightCostNormalized + 
                        aggHeightCostNormalized;
 
-    // REQUISITO 2: Priorizar siempre jugadas sin agujeros (Super Penalización)
-    if (hasHolesAfterMove) {
-        // Inflar el costo heurístico con un valor que garantice que cualquier
-        // jugada con agujeros siempre tendrá un puntaje peor que una sin agujeros.
-        heuristicCost += HOLE_SUPER_PENALTY;
-    }
     
     // --- RECOMPENSA POR LÍNEAS ---
     var linesReward = 0;
     
-    // REQUISITO 1: Solo recompensar por líneas si NO quedan agujeros en el tablero.
+    // REGLA: Solo recompensar por líneas si NO quedan agujeros en el tablero.
     if (linesCleared > 0 && !hasHolesAfterMove) {
         var baseReward = linesCleared * 100;
         var bonusReward = linesCleared * linesCleared * 500;
