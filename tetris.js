@@ -1834,12 +1834,12 @@ this.evaluateGrid = function(grid, linesCleared) {
     var WORST_MAX_HEIGHT = TOTAL_ROWS; // 22
     var WORST_AGG_HEIGHT = TOTAL_COLS * TOTAL_ROWS; // 264
     
-    // --- COEFICIENTES DE PREFERENCIA ---
-    var HOLES_PREFERENCE = 5.0; 
-    var ROUGHNESS_PREFERENCE = 4.0;
-    var CHIMNEY_PREFERENCE = 1.0; 
-    var MAX_HEIGHT_PREFERENCE = 3.0;
-    var AGG_HEIGHT_PREFERENCE = 2.0;
+    // --- COEFICIENTES DE PREFERENCIA (DINÁMICOS) ---
+    var HOLES_PREFERENCE;
+    var ROUGHNESS_PREFERENCE;
+    var CHIMNEY_PREFERENCE;
+    var MAX_HEIGHT_PREFERENCE;
+    var AGG_HEIGHT_PREFERENCE;
     
     // --- ACUMULADORES ---
     var holesCostRaw = 0;
@@ -1855,9 +1855,9 @@ this.evaluateGrid = function(grid, linesCleared) {
     var highestClearedRow = TOTAL_ROWS;
     
     // --- ESCANEO DEL TABLERO ---
-    for (var x = 0; x < TOTAL_COLS; x++) {
-        var colHeight = 0;
-        var colHoles = 0;
+    for (var x = 0; x < TOTAL_COLS; x++) {
+        var colHeight = 0;
+        var colHoles = 0;
         var blockFound = false;
         
         for (var y = 0; y < TOTAL_ROWS; y++) {
@@ -1878,12 +1878,39 @@ this.evaluateGrid = function(grid, linesCleared) {
             }
         }
         
-        heights.push(colHeight);
-        holesInCol.push(colHoles);
-        aggregateHeight += colHeight;
-    }
-    
-    // --- COSTOS BRUTOS ---
+        heights.push(colHeight);
+        holesInCol.push(colHoles);
+        aggregateHeight += colHeight;
+    }
+
+    // --- CÁLCULO TEMPRANO DE RIESGO LOCAL ---
+    var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
+
+    // --- AJUSTE DE PRIORIDADES SEGÚN RIESGO ---
+    if (riskLocalBase < 50) {
+        // Bajo riesgo: mayor énfasis en preparar setups (rugosidad/chimeneas)
+        HOLES_PREFERENCE = 3.0;
+        ROUGHNESS_PREFERENCE = 5.0;
+        CHIMNEY_PREFERENCE = 4.5;
+        MAX_HEIGHT_PREFERENCE = 2.5;
+        AGG_HEIGHT_PREFERENCE = 2.0;
+    } else if (riskLocalBase <= 70) {
+        // Riesgo medio: distribución equilibrada
+        HOLES_PREFERENCE = 4.5;
+        ROUGHNESS_PREFERENCE = 4.0;
+        CHIMNEY_PREFERENCE = 2.5;
+        MAX_HEIGHT_PREFERENCE = 3.5;
+        AGG_HEIGHT_PREFERENCE = 3.0;
+    } else {
+        // Alto riesgo: penalización fuerte a huecos y alturas
+        HOLES_PREFERENCE = 6.5;
+        ROUGHNESS_PREFERENCE = 3.0;
+        CHIMNEY_PREFERENCE = 1.5;
+        MAX_HEIGHT_PREFERENCE = 5.0;
+        AGG_HEIGHT_PREFERENCE = 4.0;
+    }
+
+    // --- COSTOS BRUTOS ---
     
     // A. AGUJEROS
     for (var y = 0; y < TOTAL_ROWS; y++) {
@@ -1948,10 +1975,9 @@ this.evaluateGrid = function(grid, linesCleared) {
         linesReward = baseReward + bonusReward + heightBonus;
     }
     
-    // --- CÁLCULO FINAL ---
-    var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
-    var S_SENSITIVITY = 5000;
-    var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
+    // --- CÁLCULO FINAL ---
+    var S_SENSITIVITY = 5000;
+    var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
     
     return totalRiskScore;
 };
