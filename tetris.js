@@ -1876,7 +1876,7 @@ this.evaluateGrid = function(grid, linesCleared) {
     }
     
     // La jugada tiene agujeros si el costo bruto de agujeros es mayor a 0.
-    var hasHolesAfterMove = (holesCostRaw > 0);
+    // var hasHolesAfterMove = (holesCostRaw > 0); // Eliminada la variable de la restricción de recompensa.
 
     // --- NORMALIZACIÓN ---
     var holesCostNormalized = (holesCostRaw / WORST_HOLES_COST) * COMMON_SCALE * HOLES_PREFERENCE;
@@ -1895,8 +1895,9 @@ this.evaluateGrid = function(grid, linesCleared) {
     // --- RECOMPENSA POR LÍNEAS ---
     var linesReward = 0;
     
-    // REGLA: Solo recompensar por líneas si NO quedan agujeros en el tablero.
-    if (linesCleared > 0 && !hasHolesAfterMove) {
+    // REGLA MODIFICADA: Recompensar por líneas, sin importar si quedan agujeros.
+    // Se elimina la condición `&& !hasHolesAfterMove`
+    if (linesCleared > 0) {
         var baseReward = linesCleared * 100;
         var bonusReward = linesCleared * linesCleared * 500;
         var heightBonus = (TOTAL_ROWS - highestClearedRow) * 100;
