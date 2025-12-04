@@ -168,8 +168,8 @@ body, table, input {
 /* next puzzle */
 #tetris-nextpuzzle {
         position: absolute;
-        top: 47%;
-        left: 35%;
+        top: calc(var(--unit) * 4.5);
+        left: calc(var(--unit) * var(--panel-padding-units));
         background:     #ffffff;
         overflow: visible;
         display: none;
