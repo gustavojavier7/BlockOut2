@@ -1668,9 +1668,36 @@ if (!String.prototype.format) {
 * Implementa búsqueda heurística con pesos ponderados.
 */
 function TetrisBot(tetrisInstance) {
-	this.tetris = tetrisInstance;
-	this.enabled = false;
-	this.isThinking = false;
+        this.tetris = tetrisInstance;
+        this.enabled = false;
+        this.isThinking = false;
+
+        // --- MODOS DE JUEGO (FAST-FAIL EN VALIDACIONES) ---
+        const GamePlayMode = {
+                SURVIVAL: 1,
+                TETRIS_BUILDER: 2,
+                PRO_ATTACK: 3,
+                ZEN: 4,
+                BALANCED: 5
+        };
+
+        var GAMEPLAY_MODE_NAMES = {};
+        GAMEPLAY_MODE_NAMES[GamePlayMode.SURVIVAL] = "SURVIVAL";
+        GAMEPLAY_MODE_NAMES[GamePlayMode.TETRIS_BUILDER] = "TETRIS_BUILDER";
+        GAMEPLAY_MODE_NAMES[GamePlayMode.PRO_ATTACK] = "PRO_ATTACK";
+        GAMEPLAY_MODE_NAMES[GamePlayMode.ZEN] = "ZEN";
+        GAMEPLAY_MODE_NAMES[GamePlayMode.BALANCED] = "BALANCED";
+
+        this.GamePlayMode = GamePlayMode;
+        this.gameplayMode = GamePlayMode.ZEN;
+
+        // Perfiles de pesos por modo (mantener BALANCED igual al comportamiento actual)
+        this.modeProfiles = {};
+        this.modeProfiles[GamePlayMode.SURVIVAL] = { holes: 1.35, roughness: 1.0, chimney: 0.8, maxHeight: 1.4, aggHeight: 1.2 };
+        this.modeProfiles[GamePlayMode.TETRIS_BUILDER] = { holes: 0.95, roughness: 1.1, chimney: 1.3, maxHeight: 0.95, aggHeight: 1.0 };
+        this.modeProfiles[GamePlayMode.PRO_ATTACK] = { holes: 1.1, roughness: 1.25, chimney: 1.1, maxHeight: 1.0, aggHeight: 0.9 };
+        this.modeProfiles[GamePlayMode.ZEN] = { holes: 1.0, roughness: 1.0, chimney: 1.0, maxHeight: 1.0, aggHeight: 1.0 };
+        this.modeProfiles[GamePlayMode.BALANCED] = { holes: 1.0, roughness: 1.0, chimney: 1.0, maxHeight: 1.0, aggHeight: 1.0 };
 
         // CONFIGURACIÓN DE HEURÍSTICA
         // Estos pesos definen la personalidad del bot.
@@ -1683,6 +1710,31 @@ function TetrisBot(tetrisInstance) {
         };
 
 var self = this;
+
+// --- UTILIDADES DE MODO ---
+
+this.getModeName = function(mode) {
+        return GAMEPLAY_MODE_NAMES[mode] || "DESCONOCIDO";
+};
+
+this.setGameplayMode = function(mode) {
+        if (!GAMEPLAY_MODE_NAMES[mode]) {
+                console.warn("[BOT] Modo inválido ignorado:", mode);
+                return;
+        }
+
+        self.gameplayMode = mode;
+
+        var indicator = document.getElementById("mode-indicator");
+        if (indicator) {
+                indicator.textContent = "Modo Bot: " + self.getModeName(mode);
+        }
+
+        console.info("[BOT] Modo activo:", self.getModeName(mode));
+};
+
+// Inicializar indicador en el modo predeterminado
+this.setGameplayMode(this.gameplayMode);
 
 // --- CONTROL PÚBLICO ---
 
@@ -1946,6 +1998,14 @@ this.evaluateGrid = function(grid, linesCleared) {
         AGG_HEIGHT_PREFERENCE = 4.0;
     }
 
+    // --- AJUSTE POR MODO DE JUEGO ---
+    var modeProfile = self.modeProfiles[self.gameplayMode] || self.modeProfiles[self.GamePlayMode.BALANCED];
+    HOLES_PREFERENCE *= modeProfile.holes;
+    ROUGHNESS_PREFERENCE *= modeProfile.roughness;
+    CHIMNEY_PREFERENCE *= modeProfile.chimney;
+    MAX_HEIGHT_PREFERENCE *= modeProfile.maxHeight;
+    AGG_HEIGHT_PREFERENCE *= modeProfile.aggHeight;
+
     // --- COSTOS BRUTOS ---
     
     // A. AGUJEROS
@@ -2014,6 +2074,8 @@ this.evaluateGrid = function(grid, linesCleared) {
     // --- CÁLCULO FINAL ---
     var S_SENSITIVITY = 5000;
     var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
+
+    console.log("[BOT] Score evaluado (" + self.getModeName(self.gameplayMode) + "):", totalRiskScore.toFixed(2));
 
     return { score: totalRiskScore, holes: holesCostRaw };
 };
