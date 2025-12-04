@@ -162,12 +162,11 @@
                 document.addEventListener("keydown", function(event) {
                         if (!bot || !bot.setGameplayMode) { return; }
 
+                        // Mapear únicamente los modos heurísticos (modo BALANCED y ZEN quedan fuera del selector rápido)
                         var modeMap = {
                                 "1": bot.GamePlayMode.SURVIVAL,
                                 "2": bot.GamePlayMode.TETRIS_BUILDER,
-                                "3": bot.GamePlayMode.PRO_ATTACK,
-                                "4": bot.GamePlayMode.ZEN,
-                                "5": bot.GamePlayMode.BALANCED
+                                "3": bot.GamePlayMode.PRO_ATTACK
                         };
 
                         var requestedMode = modeMap[event.key];

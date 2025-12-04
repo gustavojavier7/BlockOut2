@@ -6,6 +6,7 @@
         --panel-padding-units: 1.8;
         --menu-width-units: 5.6;
         --menu-indent-units: 1.4;
+        --menu-height-units: 13.8;
         --grid-stroke: 1px;
 }
 
@@ -168,7 +169,8 @@ body, table, input {
 /* next puzzle */
 #tetris-nextpuzzle {
         position: absolute;
-        top: calc(var(--unit) * 4.5);
+        /* Ubicar el cuadro justo después del menú para evitar solapamientos con los items de navegación */
+        top: calc(var(--unit) * var(--menu-height-units));
         left: calc(var(--unit) * var(--panel-padding-units));
         background:     #ffffff;
         overflow: visible;
