@@ -1771,58 +1771,67 @@ playStep();
 this.calculateBestMove = function() {
     var bestScore = Infinity;
     var bestMove = null;
-    var centerX = self.tetris.areaX / 2; // 10 en tablero estándar → 10 columnas reales (0-19 → centro 9.5)
+    var zeroHoleMoves = [];
 
     for (var r = 0; r < 4; r++) {
         for (var x = 0; x < self.tetris.areaX; x++) {
             var simulation = self.simulateDrop(r, x);
-            if (!simulation.isValid) continue;
+            if (!simulation.isValid) { continue; }
 
-            var score = self.evaluateGrid(simulation.grid, simulation.linesCleared);
+            var evaluation = self.evaluateGrid(simulation.grid, simulation.linesCleared);
+            var score = evaluation.score;
+            var holesCost = evaluation.holes;
 
-            // Cálculo auxiliar para desempate (solo se hace si el score es competitivo)
-            var currentDistanceToCenter = Math.abs(x - centerX);
+            var move = {
+                rotation: r,
+                x: x,
+                score: score,
+                hasHoles: holesCost > 0,
+                maxHeight: getMaxHeight(simulation.grid)
+            };
 
-            var updateBest = false;
-
-            if (score < bestScore) {
-                updateBest = true;
-            } else if (score === bestScore && bestMove !== null) {
-                var bestDistanceToCenter = Math.abs(bestMove.x - centerX);
-
-                // 1er criterio: más centrada
-                if (currentDistanceToCenter < bestDistanceToCenter) {
-                    updateBest = true;
-                } else if (currentDistanceToCenter === bestDistanceToCenter) {
-                    // 2do criterio: menor altura máxima (tablero más bajo)
-                    var currentMaxHeight = getMaxHeight(simulation.grid);
-                    var bestMaxHeight = bestMove.maxHeight || getMaxHeight(self.simulateDrop(bestMove.rotation, bestMove.x).grid);
-
-                    if (currentMaxHeight < bestMaxHeight) {
-                        updateBest = true;
-                    }
-                }
+            if (!move.hasHoles) {
+                zeroHoleMoves.push(move);
             }
 
-            if (updateBest || bestMove === null) {
+            if (score < bestScore) {
                 bestScore = score;
-                bestMove = {
-                    rotation: r,
-                    x: x,
-                    maxHeight: getMaxHeight(simulation.grid) // cache para desempate futuro
-                };
+                bestMove = move;
             }
         }
     }
 
-    // Función auxiliar para obtener altura máxima (reutiliza lógica existente)
+    var finalBestMove = null;
+
+    if (zeroHoleMoves.length > 0) {
+        var bestZeroHoleScore = Infinity;
+        for (var i = 0; i < zeroHoleMoves.length; i++) {
+            var candidate = zeroHoleMoves[i];
+
+            // Fast fail: si la puntuación no mejora y la altura no es menor, saltar pronto.
+            if (candidate.score > bestZeroHoleScore && (!finalBestMove || candidate.maxHeight >= finalBestMove.maxHeight)) {
+                continue;
+            }
+
+            if (candidate.score < bestZeroHoleScore ||
+                (candidate.score === bestZeroHoleScore && finalBestMove && candidate.maxHeight < finalBestMove.maxHeight)) {
+                bestZeroHoleScore = candidate.score;
+                finalBestMove = candidate;
+            } else if (candidate.score === bestZeroHoleScore && !finalBestMove) {
+                finalBestMove = candidate;
+            }
+        }
+    } else {
+        finalBestMove = bestMove;
+    }
+
     function getMaxHeight(grid) {
         var maxH = 0;
         for (var col = 0; col < grid[0].length; col++) {
             for (var row = 0; row < grid.length; row++) {
                 if (grid[row][col] !== 0) {
                     var height = self.tetris.areaY - row;
-                    if (height > maxH) maxH = height;
+                    if (height > maxH) { maxH = height; }
                     break;
                 }
             }
@@ -1830,7 +1839,7 @@ this.calculateBestMove = function() {
         return maxH;
     }
 
-    return bestMove ? { rotation: bestMove.rotation, x: bestMove.x } : null;
+    return finalBestMove ? { rotation: finalBestMove.rotation, x: finalBestMove.x } : null;
 };
 
 this.evaluateGrid = function(grid, linesCleared) {
@@ -1999,8 +2008,8 @@ this.evaluateGrid = function(grid, linesCleared) {
     // --- CÁLCULO FINAL ---
     var S_SENSITIVITY = 5000;
     var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
-    
-    return totalRiskScore;
+
+    return { score: totalRiskScore, holes: holesCostRaw };
 };
 
 // --- SIMULACIÓN FÍSICA ---
