@@ -305,15 +305,6 @@ function Tetris()
                         coopCheckbox.checked = self.isCoopMode;
                 }
 
-                // Sincronizar el estado del bot con el modo seleccionado.
-                if (window.bot) {
-                        if (self.isCoopMode && !window.bot.enabled) {
-                                window.bot.toggle();
-                        } else if (!self.isCoopMode && window.bot.enabled) {
-                                window.bot.toggle();
-                        }
-                }
-
                 var indicator = document.getElementById('mode-indicator');
                 if (indicator) {
                         indicator.innerHTML = self.isCoopMode ? 'Modo Co-op Bot (20x20)' : 'Modo Clásico (12x22)';
@@ -331,6 +322,21 @@ function Tetris()
                 if ((self.humanPuzzle || self.botPuzzle) && !confirm('Are you sure you want to start a new game ?')) return;
                 self.updateResponsiveUnit();
                 self.reset();
+
+                // Establecer explícitamente el estado del bot al inicio para evitar toggles accidentales.
+                if (window.bot) {
+                        var shouldEnableBot = !!self.isCoopMode;
+                        window.bot.enabled = shouldEnableBot;
+                        window.bot.isThinking = false;
+                        window.bot.bestBotMove = null;
+                        window.bot.predictedBoard = null;
+
+                        var botLabel = document.getElementById("tetris-menu-ai");
+                        if (botLabel) {
+                                botLabel.innerHTML = shouldEnableBot ? "Salir de Co-op" : "Modo Co-op Bot";
+                        }
+                }
+
                 self.stats.start();
                 document.getElementById("tetris-nextpuzzle").style.display = "block";
                 document.getElementById("tetris-keys").style.display = "none";
