@@ -1711,6 +1711,28 @@ function TetrisBot(tetrisInstance) {
 
 var self = this;
 
+// --- CONTROL DE MODO AUTOMÁTICO ---
+// El modo automático permite que la IA seleccione el perfil de juego según la ocupación del tablero.
+let autoMode = true;         // IA decide modo dinámico
+let manualModeOverride = false;  // Usuario cambia modo
+
+var autoModeToggle = document.getElementById("auto-mode-toggle");
+if (autoModeToggle) {
+        autoModeToggle.checked = autoMode;
+        autoModeToggle.addEventListener("change", function() {
+                autoMode = this.checked;
+                manualModeOverride = !this.checked;
+
+                if (autoMode) {
+                        console.log("Auto Mode activado. La IA decidirá el modo.");
+                } else {
+                        console.log("Auto Mode desactivado. El usuario controla el modo.");
+                }
+        });
+} else {
+        console.warn("[BOT] Control de Auto Mode no encontrado; se mantiene en automático por defecto.");
+}
+
 // --- UTILIDADES DE MODO ---
 
 this.getModeName = function(mode) {
@@ -1732,6 +1754,38 @@ this.setGameplayMode = function(mode) {
 
         console.info("[BOT] Modo activo:", self.getModeName(mode));
 };
+
+function calculateOccupancy(grid) {
+        if (!grid || !grid.length || !grid[0].length) {
+                console.warn("[BOT] Grid inválido para calcular ocupación; se usará el modo manual.");
+                return 1;
+        }
+
+        var filled = 0;
+        var total = grid.length * grid[0].length;
+
+        for (var r = 0; r < grid.length; r++) {
+                for (var c = 0; c < grid[0].length; c++) {
+                        if (grid[r][c] !== 0) { filled++; }
+                }
+        }
+
+        return filled / total;
+}
+
+function getActiveMode(grid) {
+        if (manualModeOverride || !autoMode) {
+                return self.gameplayMode;
+        }
+
+        var occupancy = calculateOccupancy(grid);
+
+        if (occupancy <= 0.20) return GamePlayMode.PRO_ATTACK;
+        if (occupancy <= 0.40) return GamePlayMode.TETRIS_BUILDER;
+        if (occupancy <= 0.60) return GamePlayMode.BALANCED;
+        if (occupancy <= 0.80) return GamePlayMode.SURVIVAL;
+        return GamePlayMode.ZEN;
+}
 
 // Inicializar indicador en el modo predeterminado
 this.setGameplayMode(this.gameplayMode);
@@ -1900,12 +1954,15 @@ this.calculateBestMove = function() {
     return finalBestMove ? { rotation: finalBestMove.rotation, x: finalBestMove.x } : null;
 };
 
-this.evaluateGrid = function(grid, linesCleared) {
-    var TOTAL_ROWS = self.tetris.areaY; // 22
-    var TOTAL_COLS = self.tetris.areaX; // 12
-    var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
-    
-    var COMMON_SCALE = 10000;
+this.evaluateGrid = function(grid, linesCleared, skipLookahead) {
+    var TOTAL_ROWS = self.tetris.areaY; // 22
+    var TOTAL_COLS = self.tetris.areaX; // 12
+    var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
+
+    var modeToUse = getActiveMode(grid);
+    var occupancyRatio = calculateOccupancy(grid);
+
+    var COMMON_SCALE = 10000;
     
     // --- PEORES CASOS ---
     var WORST_HOLES_COST = 36 * (TOTAL_ROWS * (TOTAL_ROWS + 1) / 2); // 9,108
@@ -1999,7 +2056,7 @@ this.evaluateGrid = function(grid, linesCleared) {
     }
 
     // --- AJUSTE POR MODO DE JUEGO ---
-    var modeProfile = self.modeProfiles[self.gameplayMode] || self.modeProfiles[self.GamePlayMode.BALANCED];
+    var modeProfile = self.modeProfiles[modeToUse] || self.modeProfiles[self.GamePlayMode.BALANCED];
     HOLES_PREFERENCE *= modeProfile.holes;
     ROUGHNESS_PREFERENCE *= modeProfile.roughness;
     CHIMNEY_PREFERENCE *= modeProfile.chimney;
@@ -2075,10 +2132,92 @@ this.evaluateGrid = function(grid, linesCleared) {
     var S_SENSITIVITY = 5000;
     var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
 
-    console.log("[BOT] Score evaluado (" + self.getModeName(self.gameplayMode) + "):", totalRiskScore.toFixed(2));
+    var modeName = Object.keys(GamePlayMode).find(function(key) { return GamePlayMode[key] === modeToUse; }) || self.getModeName(modeToUse);
 
-    return { score: totalRiskScore, holes: holesCostRaw };
+    var indicator = document.getElementById("mode-indicator");
+    if (indicator) {
+            indicator.innerText = "Modo Bot: " + modeName;
+    }
+
+    // --- LOOKAHEAD DINÁMICO ---
+    var scoreCurrent = totalRiskScore;
+    var scoreFuture = null;
+    var finalScore = scoreCurrent;
+
+    var isAutoLookaheadEnabled = !skipLookahead && autoMode && !manualModeOverride;
+    var weightCurrent = 1;
+    var weightFuture = 0;
+
+    if (isAutoLookaheadEnabled) {
+            weightCurrent = occupancyRatio > 0.5 ? 0.70 : 0.40;
+            weightFuture = occupancyRatio > 0.5 ? 0.30 : 0.60;
+    }
+
+    if (isAutoLookaheadEnabled && self.tetris && self.tetris.puzzle && self.tetris.puzzle.puzzles) {
+            var nextType = self.tetris.puzzle.nextType;
+            if (nextType !== null && nextType !== undefined) {
+                    var nextPiece = self.tetris.puzzle.puzzles[nextType];
+
+                    // Simular la mejor colocación posible de la siguiente pieza.
+                    scoreFuture = simulateNextPiece(grid, nextPiece);
+
+                    if (scoreFuture !== null) {
+                            finalScore = (scoreCurrent * weightCurrent) + (scoreFuture * weightFuture);
+                    }
+            }
+    }
+
+    if (scoreFuture !== null) {
+            console.log("[" + modeName + "] Score Actual: " + scoreCurrent.toFixed(2) +
+                        " | Score Futuro: " + scoreFuture.toFixed(2));
+    } else {
+            console.log("[" + modeName + "] Score: " + scoreCurrent.toFixed(2));
+    }
+
+    return { score: finalScore, holes: holesCostRaw };
 };
+
+function simulateNextPiece(baseGrid, nextPiece) {
+        if (!nextPiece || !nextPiece.length || !baseGrid || !baseGrid.length) {
+                // Fast fail: sin pieza futura o tablero inválido, no hay lookahead.
+                return null;
+        }
+
+        var candidateScore = null;
+        var rotatedPiece = nextPiece;
+
+        // Probar las 4 rotaciones posibles.
+        for (var r = 0; r < 4; r++) {
+                if (r > 0) {
+                        rotatedPiece = rotateGrid(rotatedPiece);
+                }
+
+                var pieceWidth = rotatedPiece[0].length;
+                var maxX = self.tetris.areaX - pieceWidth;
+
+                for (var x = 0; x <= maxX; x++) {
+                        // Si no cabe en la fila superior, intentar siguiente posición.
+                        if (!isPositionValid(rotatedPiece, x, 0, baseGrid)) { continue; }
+
+                        var dropY = 0;
+                        while (isPositionValid(rotatedPiece, x, dropY + 1, baseGrid)) {
+                                dropY++;
+                        }
+
+                        var merged = mergePiece(baseGrid, rotatedPiece, x, dropY);
+                        var cleared = clearFullLines(merged);
+                        var evaluation = self.evaluateGrid(cleared.grid, cleared.lines, true);
+
+                        if (!evaluation) { continue; }
+
+                        if (candidateScore === null || evaluation.score < candidateScore) {
+                                candidateScore = evaluation.score;
+                        }
+                }
+        }
+
+        return candidateScore;
+}
 
 // --- SIMULACIÓN FÍSICA ---
 this.simulateDrop = function(rotation, targetX) {
