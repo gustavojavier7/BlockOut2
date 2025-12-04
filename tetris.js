@@ -1022,15 +1022,15 @@ function Tetris()
                 this.isHumanControlled = !!isHumanControlled; // true si la pieza es controlada por el jugador humano
 
 		// timeout ids
-		this.fallDownID = null;
+                this.fallDownID = null;
                 this.forceMoveDownID = null;
 
                 // Indicador para habilitar la planificación del bot solo cuando el humano haya actuado.
                 this.botReadyTriggered = false;
 
-		this.type = null; // 0..6
-		this.nextType = null; // next puzzle
-		this.position = null; // 0..3
+                this.type = null; // 0..6
+                this.nextType = null; // next puzzle
+                this.position = null; // 0..3
 		this.speed = null;
 		this.running = null;
 		this.stopped = null;
@@ -1080,25 +1080,70 @@ function Tetris()
 				[0,0,0,0],
 				[0,0,0,0]
 			]
-		];
+                ];
 
-		/**
-		 * Reset puzzle. It does not destroy html elements in this.board.
-		 * @return void
-		 * @access public
-		 */
+                /**
+                 * Limpia todos los temporizadores asociados a la pieza actual.
+                 * @return void
+                 * @access private
+                 */
+                this.clearTimers = function()
+                {
+                        if (this.fallDownID) { clearTimeout(this.fallDownID); this.fallDownID = null; }
+                        if (this.forceMoveDownID) { clearTimeout(this.forceMoveDownID); this.forceMoveDownID = null; }
+                };
+
+                /**
+                 * Elimina la representación visual actual (pieza activa) del DOM.
+                 * @return void
+                 * @access private
+                 */
+                this.clearElements = function()
+                {
+                        for (var i = 0; i < this.elements.length; i++) {
+                                if (this.elements[i] && this.elements[i].parentNode === this.area.el) {
+                                        this.area.el.removeChild(this.elements[i]);
+                                }
+                        }
+                        this.elements = [];
+                        this.board = [];
+                };
+
+                /**
+                 * Limpia la previsualización de la siguiente pieza (solo humano).
+                 * @return void
+                 * @access private
+                 */
+                this.clearNextPreview = function()
+                {
+                        if (!this.isHumanControlled) { return; }
+
+                        for (var i = 0; i < this.nextElements.length; i++) {
+                                if (this.nextElements[i].parentNode) {
+                                        this.nextElements[i].parentNode.removeChild(this.nextElements[i]);
+                                }
+                        }
+                        this.nextElements = [];
+                };
+
+                /**
+                 * Reset puzzle. It does not destroy html elements in this.board.
+                 * @return void
+                 * @access public
+                 */
                 this.reset = function(syncTypes)
                 {
-                        if (this.fallDownID) {
-                                clearTimeout(this.fallDownID);
-                        }
-                        if (this.forceMoveDownID) {
-                                clearTimeout(this.forceMoveDownID);
-                        }
+                        this.clearTimers();
+
+                        var humanNextType = (this.tetris && this.tetris.humanPuzzle) ? this.tetris.humanPuzzle.nextType : null;
                         // Permite forzar la semilla de la pieza para sincronizar con el bot.
                         if (syncTypes && typeof syncTypes.current === 'number') {
                                 this.type = syncTypes.current;
                                 this.nextType = (typeof syncTypes.next === 'number') ? syncTypes.next : random(this.puzzles.length);
+                        } else if (!this.isHumanControlled && typeof humanNextType === 'number') {
+                                // El bot debe respetar la pieza ya generada por el humano para mantener la sincronización.
+                                this.type = (typeof this.nextType === 'number') ? this.nextType : humanNextType;
+                                this.nextType = humanNextType;
                         } else {
                                 this.type = this.nextType;
                                 this.nextType = random(this.puzzles.length);
@@ -1111,14 +1156,9 @@ function Tetris()
                         }
                         this.running = false;
                         this.stopped = false;
-			this.board = [];
-			this.elements = [];
-                        if (this.isHumanControlled) {
-                                for (var i = 0; i < this.nextElements.length; i++) {
-                                        document.getElementById("tetris-nextpuzzle").removeChild(this.nextElements[i]);
-                                }
-                        }
-                        this.nextElements = [];
+                        this.board = [];
+                        this.elements = [];
+                        this.clearNextPreview();
                         this.x = null;
                         this.y = null;
                         this.botReadyTriggered = false;
@@ -1304,18 +1344,20 @@ function Tetris()
 		/**
 		 * Remove puzzle from the area.
 		 * Clean some other stuff, see reset()
-		 * @return void
-		 * @access public
-		 */
-		this.destroy = function()
-		{
-			for (var i = 0; i < this.elements.length; i++) {
-				this.area.el.removeChild(this.elements[i]);
-			}
-			this.elements = [];
-			this.board = [];
-			this.reset();
-		};
+                 * @return void
+                 * @access public
+                 */
+                this.destroy = function()
+                {
+                        this.clearTimers();
+                        this.clearNextPreview();
+                        this.clearElements();
+                        this.running = false;
+                        this.stopped = true;
+                        this.type = null;
+                        this.nextType = null;
+                        this.position = 0;
+                };
 
 		/**
 		 * @param int y
