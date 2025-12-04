@@ -102,6 +102,14 @@ body, table, input {
         /* with margin 0.5px there were problems with offsetLeft and offsetTop */
 }
 
+.bot-ghost {
+        opacity: 0.35;
+        pointer-events: none;
+        border: 1px dashed rgba(0, 0, 0, 0.35);
+        box-sizing: border-box;
+        z-index: 800;
+}
+
 #tetris .left h1, #tetris .left h2 {
         color: #826C55;
         font-size: 11px;

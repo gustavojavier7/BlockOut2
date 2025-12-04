@@ -296,8 +296,9 @@ function Tetris()
                 }
 
                 self.isCoopMode = requestedCoop;
-                self.areaX = self.isCoopMode ? 20 : 12;
-                self.areaY = self.isCoopMode ? 20 : 22;
+                // MVP: el tablero se mantiene en 12x22 incluso en modo cooperativo.
+                self.areaX = 12;
+                self.areaY = 22;
 
                 // Sincronizar el checkbox visual del modo cooperativo con el estado actual.
                 var coopCheckbox = document.getElementById('tetris-coop-mode');
@@ -307,7 +308,15 @@ function Tetris()
 
                 var indicator = document.getElementById('mode-indicator');
                 if (indicator) {
-                        indicator.innerHTML = self.isCoopMode ? 'Modo Co-op Bot (20x20)' : 'Modo Clásico (12x22)';
+                        indicator.innerHTML = self.isCoopMode ? 'Modo Co-op Bot (12x22)' : 'Modo Clásico (12x22)';
+                }
+
+                if (window.bot) {
+                        window.bot.bestBotMove = null;
+                        window.bot.predictedBoard = null;
+                        if (typeof window.bot.clearGhostPreview === 'function') {
+                                window.bot.clearGhostPreview();
+                        }
                 }
 
                 self.updateResponsiveUnit();
@@ -347,6 +356,10 @@ function Tetris()
                         window.bot.isThinking = false;
                         window.bot.bestBotMove = null;
                         window.bot.predictedBoard = null;
+
+                        if (typeof window.bot.clearGhostPreview === 'function') {
+                                window.bot.clearGhostPreview();
+                        }
 
                         self.updateBotToggleLabel();
                 }
@@ -1373,13 +1386,18 @@ function Tetris()
                 {
                         // Fast-fail: salir rápidamente si no aplica la notificación
                         if (!this.isHumanControlled) { return; }
-                        if (this.botReadyTriggered) { return; }
                         if (!window.bot || !window.bot.enabled) { return; }
                         if (this.isStopped()) { return; }
 
-                        this.botReadyTriggered = true;
+                        // Obligar a recalcular la jugada en cada ajuste del jugador.
+                        window.bot.bestBotMove = null;
+                        window.bot.predictedBoard = null;
+                        if (typeof window.bot.clearGhostPreview === 'function') {
+                                window.bot.clearGhostPreview();
+                        }
 
                         setTimeout(function() {
+                                window.bot.isThinking = false;
                                 window.bot.makeMove();
                         }, 100);
                 };
@@ -1933,6 +1951,7 @@ function TetrisBot(tetrisInstance) {
         this.isThinking = false;
         this.predictedBoard = null; // Tablero proyectado (dual-state)
         this.bestBotMove = null; // Movimiento óptimo pendiente de ejecutar
+        this.ghostElements = []; // Previsualización de la jugada del bot
 
         // --- MODOS DE JUEGO (FAST-FAIL EN VALIDACIONES) ---
         const GamePlayMode = {
@@ -2016,7 +2035,51 @@ this.setGameplayMode = function(mode) {
                 indicator.textContent = "Modo Bot: " + self.getModeName(mode);
         }
 
-        console.info("[BOT] Modo activo:", self.getModeName(mode));
+console.info("[BOT] Modo activo:", self.getModeName(mode));
+};
+
+// --- PREVISUALIZACIÓN DE LA JUGADA DEL BOT ---
+
+this.clearGhostPreview = function() {
+        if (!self.ghostElements.length) { return; }
+
+        for (var i = 0; i < self.ghostElements.length; i++) {
+                if (self.ghostElements[i].parentNode) {
+                        self.ghostElements[i].parentNode.removeChild(self.ghostElements[i]);
+                }
+        }
+
+        self.ghostElements = [];
+};
+
+this.renderGhostPreview = function(move) {
+        // Fast-fail: evitar ghost en modos que no lo necesitan.
+        self.clearGhostPreview();
+        if (!self.tetris || !self.tetris.isCoopMode) { return; }
+        if (!self.enabled) { return; }
+        if (!move) { return; }
+        if (!self.tetris.botPuzzle || !self.tetris.botPuzzle.isRunning()) { return; }
+        if (!self.tetris.area || !self.tetris.area.el) { return; }
+
+        var simulation = self.simulateDrop(move.rotation, move.x);
+        if (!simulation.isValid || typeof simulation.finalX !== 'number' || typeof simulation.finalY !== 'number') { return; }
+        if (!simulation.pieceGrid || !simulation.pieceGrid.length) { return; }
+
+        var unit = self.tetris.unit;
+        var pieceType = (typeof self.tetris.botPuzzle.type === 'number') ? self.tetris.botPuzzle.type : 0;
+
+        for (var y = 0; y < simulation.pieceGrid.length; y++) {
+                for (var x = 0; x < simulation.pieceGrid[y].length; x++) {
+                        if (!simulation.pieceGrid[y][x]) { continue; }
+
+                        var el = document.createElement('div');
+                        el.className = 'bot-ghost block' + pieceType;
+                        el.style.left = ((simulation.finalX + x) * unit) + 'px';
+                        el.style.top = ((simulation.finalY + y) * unit) + 'px';
+                        self.tetris.area.el.appendChild(el);
+                        self.ghostElements.push(el);
+                }
+        }
 };
 
 function calculateMaxHeightRatio(grid) {
@@ -2142,9 +2205,12 @@ this.makeMove = function() {
         // (Nota: Esto es intensivo, podría ir en un WebWorker en el futuro)
         var bestMove = self.calculateBestMove();
 
-	// 2. Ejecutar la jugada visualmente
+        // 2. Ejecutar la jugada visualmente
         if (bestMove) {
                 self.bestBotMove = bestMove;
+                self.renderGhostPreview(bestMove);
+        } else {
+                self.clearGhostPreview();
         }
 
         // Si no hay movimiento válido (game over inminente) o el cálculo terminó, liberar
@@ -2162,9 +2228,19 @@ this.executeStoredMove = function() {
                 return;
         }
 
+        self.clearGhostPreview();
         self.isThinking = true;
         var moveToExecute = self.bestBotMove;
         self.bestBotMove = null;
+
+        // Validar que la jugada sigue siendo legal con el tablero real.
+        self.predictedBoard = null;
+        var isStillValid = self.simulateDrop(moveToExecute.rotation, moveToExecute.x);
+        if (!isStillValid.isValid) {
+                self.isThinking = false;
+                return;
+        }
+
         self.executeMoveSmoothly(moveToExecute);
 };
 
@@ -2568,7 +2644,7 @@ function simulateNextPiece(baseGrid, nextPiece) {
 // --- SIMULACIÓN FÍSICA ---
 this.simulateDrop = function(rotation, targetX) {
         if (!self.tetris || !self.tetris.area) {
-                return { isValid: false, grid: [], linesCleared: 0 };
+                return { isValid: false, grid: [], linesCleared: 0, finalX: null, finalY: null, pieceGrid: null };
         }
 
 var referenceBoard = self.predictedBoard || self.tetris.area.board;
@@ -2576,13 +2652,13 @@ var areaGrid = cloneAreaGrid(referenceBoard);
 
 var activePuzzle = self.tetris.botPuzzle || self.tetris.humanPuzzle;
 if (!activePuzzle) {
-        return { isValid: false, grid: [], linesCleared: 0 };
+        return { isValid: false, grid: [], linesCleared: 0, finalX: null, finalY: null, pieceGrid: null };
 }
 
 var pieceGrid = clonePieceGrid(activePuzzle.board);
 
 if (!pieceGrid.length) {
-        return { isValid: false, grid: [], linesCleared: 0 };
+        return { isValid: false, grid: [], linesCleared: 0, finalX: null, finalY: null, pieceGrid: null };
 }
 
 for (var i = 0; i < rotation; i++) {
@@ -2593,30 +2669,30 @@ var posX = activePuzzle.getX();
 var posY = activePuzzle.getY();
 
 if (!isPositionValid(pieceGrid, posX, posY, areaGrid)) {
-        return { isValid: false, grid: [], linesCleared: 0 };
+        return { isValid: false, grid: [], linesCleared: 0, finalX: null, finalY: null, pieceGrid: null };
 }
 
 if (targetX < 0 || targetX >= self.tetris.areaX) {
-	return { isValid: false, grid: [], linesCleared: 0 };
+        return { isValid: false, grid: [], linesCleared: 0, finalX: null, finalY: null, pieceGrid: null };
 }
 
 var dir = targetX > posX ? 1 : -1;
 while (posX !== targetX) {
-	var nextX = posX + dir;
-	if (!isPositionValid(pieceGrid, nextX, posY, areaGrid)) {
-		return { isValid: false, grid: [], linesCleared: 0 };
-	}
+        var nextX = posX + dir;
+        if (!isPositionValid(pieceGrid, nextX, posY, areaGrid)) {
+                return { isValid: false, grid: [], linesCleared: 0, finalX: null, finalY: null, pieceGrid: null };
+        }
 posX = nextX;
 }
 
 while (isPositionValid(pieceGrid, posX, posY + 1, areaGrid)) {
-	posY++;
+        posY++;
 }
 
 var mergedGrid = mergePiece(areaGrid, pieceGrid, posX, posY);
 var cleared = clearFullLines(mergedGrid);
 
-return { isValid: true, grid: cleared.grid, linesCleared: cleared.lines };
+return { isValid: true, grid: cleared.grid, linesCleared: cleared.lines, finalX: posX, finalY: posY, pieceGrid: pieceGrid };
                         };
 
 // Construye el tablero proyectado incluyendo la posición final de la pieza humana.
