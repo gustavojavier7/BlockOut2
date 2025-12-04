@@ -391,6 +391,7 @@ function Tetris()
                         if (self.humanPuzzle.mayRotate()) {
                                 self.humanPuzzle.rotate();
                                 self.stats.setActions(self.stats.getActions() + 1);
+                                self.humanPuzzle.notifyBotAfterHumanMove();
                         }
                 }
         };
@@ -406,6 +407,7 @@ function Tetris()
                                 self.stats.setScore(self.stats.getScore() + 5 + self.stats.getLevel());
                                 self.humanPuzzle.moveDown();
                                 self.stats.setActions(self.stats.getActions() + 1);
+                                self.humanPuzzle.notifyBotAfterHumanMove();
                         }
                 }
         };
@@ -420,6 +422,7 @@ function Tetris()
                         if (self.humanPuzzle.mayMoveLeft()) {
                                 self.humanPuzzle.moveLeft();
                                 self.stats.setActions(self.stats.getActions() + 1);
+                                self.humanPuzzle.notifyBotAfterHumanMove();
                         }
                 }
         };
@@ -434,6 +437,7 @@ function Tetris()
                         if (self.humanPuzzle.mayMoveRight()) {
                                 self.humanPuzzle.moveRight();
                                 self.stats.setActions(self.stats.getActions() + 1);
+                                self.humanPuzzle.notifyBotAfterHumanMove();
                         }
                 }
         };
@@ -447,6 +451,7 @@ function Tetris()
                 if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
                         self.humanPuzzle.stop();
                         self.humanPuzzle.forceMoveDown();
+                        self.humanPuzzle.notifyBotAfterHumanMove();
                 }
         };
 
@@ -939,7 +944,10 @@ function Tetris()
 
 		// timeout ids
 		this.fallDownID = null;
-		this.forceMoveDownID = null;
+                this.forceMoveDownID = null;
+
+                // Indicador para habilitar la planificación del bot solo cuando el humano haya actuado.
+                this.botReadyTriggered = false;
 
 		this.type = null; // 0..6
 		this.nextType = null; // next puzzle
@@ -1031,10 +1039,11 @@ function Tetris()
                                         document.getElementById("tetris-nextpuzzle").removeChild(this.nextElements[i]);
                                 }
                         }
-			this.nextElements = [];
-			this.x = null;
-			this.y = null;
-		};
+                        this.nextElements = [];
+                        this.x = null;
+                        this.y = null;
+                        this.botReadyTriggered = false;
+                };
 
 		this.nextType = random(this.puzzles.length);
 		this.reset();
@@ -1189,11 +1198,26 @@ function Tetris()
                         }
 
                         // Activar el bot para la nueva pieza cuando corresponda
-                        if (this.isHumanControlled && window.bot && window.bot.enabled) {
-                                setTimeout(function() {
-                                        window.bot.makeMove();
-                                }, 100);
-                        }
+                };
+
+                /**
+                 * Dispara la planificación del bot solo después de que el humano haya realizado una acción.
+                 * @return void
+                 * @access public
+                 */
+                this.notifyBotAfterHumanMove = function()
+                {
+                        // Fast-fail: salir rápidamente si no aplica la notificación
+                        if (!this.isHumanControlled) { return; }
+                        if (this.botReadyTriggered) { return; }
+                        if (!window.bot || !window.bot.enabled) { return; }
+                        if (this.isStopped()) { return; }
+
+                        this.botReadyTriggered = true;
+
+                        setTimeout(function() {
+                                window.bot.makeMove();
+                        }, 100);
                 };
 
 		/**
