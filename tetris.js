@@ -1741,6 +1741,7 @@ function TetrisBot(tetrisInstance) {
         this.tetris = tetrisInstance;
         this.enabled = false;
         this.isThinking = false;
+        this.predictedBoard = null; // Tablero proyectado (dual-state)
 
         // --- MODOS DE JUEGO (FAST-FAIL EN VALIDACIONES) ---
         const GamePlayMode = {
@@ -1930,16 +1931,19 @@ self.isThinking = false; // Detener procesos pendientes
 // --- BUCLE DE DECISIÓN (FAST-FAIL) ---
 
 this.makeMove = function() {
-	if (!self.enabled) { return; }
-	if (self.tetris.paused) { return; }
-	if (!self.tetris.humanPuzzle || !self.tetris.humanPuzzle.isRunning()) { return; }
-	if (self.isThinking) { return; }
+        if (!self.enabled) { return; }
+        if (self.tetris.paused) { return; }
+        if (!self.tetris.humanPuzzle || !self.tetris.humanPuzzle.isRunning()) { return; }
+        if (self.isThinking) { return; }
 
-	self.isThinking = true;
+        self.isThinking = true;
 
-	// 1. Calcular la mejor jugada posible
-	// (Nota: Esto es intensivo, podría ir en un WebWorker en el futuro)
-	var bestMove = self.calculateBestMove();
+        // Construir el tablero proyectado con la caída final del humano.
+        self.predictedBoard = buildPredictedBoard();
+
+        // 1. Calcular la mejor jugada posible
+        // (Nota: Esto es intensivo, podría ir en un WebWorker en el futuro)
+        var bestMove = self.calculateBestMove();
 
 	// 2. Ejecutar la jugada visualmente
 	if (bestMove) {
@@ -2346,26 +2350,33 @@ function simulateNextPiece(baseGrid, nextPiece) {
 
 // --- SIMULACIÓN FÍSICA ---
 this.simulateDrop = function(rotation, targetX) {
-	if (!self.tetris || !self.tetris.area || !self.tetris.humanPuzzle) {
-		return { isValid: false, grid: [], linesCleared: 0 };
-	}
+        if (!self.tetris || !self.tetris.area) {
+                return { isValid: false, grid: [], linesCleared: 0 };
+        }
 
-var areaGrid = cloneAreaGrid(self.tetris.area.board);
-var pieceGrid = clonePieceGrid(self.tetris.humanPuzzle.board);
+var referenceBoard = self.predictedBoard || self.tetris.area.board;
+var areaGrid = cloneAreaGrid(referenceBoard);
+
+var activePuzzle = self.tetris.botPuzzle || self.tetris.humanPuzzle;
+if (!activePuzzle) {
+        return { isValid: false, grid: [], linesCleared: 0 };
+}
+
+var pieceGrid = clonePieceGrid(activePuzzle.board);
 
 if (!pieceGrid.length) {
-	return { isValid: false, grid: [], linesCleared: 0 };
+        return { isValid: false, grid: [], linesCleared: 0 };
 }
 
 for (var i = 0; i < rotation; i++) {
-	pieceGrid = rotateGrid(pieceGrid);
+        pieceGrid = rotateGrid(pieceGrid);
 }
 
-var posX = self.tetris.humanPuzzle.getX();
-var posY = self.tetris.humanPuzzle.getY();
+var posX = activePuzzle.getX();
+var posY = activePuzzle.getY();
 
 if (!isPositionValid(pieceGrid, posX, posY, areaGrid)) {
-	return { isValid: false, grid: [], linesCleared: 0 };
+        return { isValid: false, grid: [], linesCleared: 0 };
 }
 
 if (targetX < 0 || targetX >= self.tetris.areaX) {
@@ -2389,7 +2400,39 @@ var mergedGrid = mergePiece(areaGrid, pieceGrid, posX, posY);
 var cleared = clearFullLines(mergedGrid);
 
 return { isValid: true, grid: cleared.grid, linesCleared: cleared.lines };
-			};
+                        };
+
+// Construye el tablero proyectado incluyendo la posición final de la pieza humana.
+function buildPredictedBoard() {
+        if (!self.tetris || !self.tetris.area) {
+                return null;
+        }
+
+        if (!self.tetris.humanPuzzle || self.tetris.humanPuzzle.isStopped()) {
+                return cloneAreaGrid(self.tetris.area.board);
+        }
+
+        var baseGrid = cloneAreaGrid(self.tetris.area.board);
+        var humanPiece = clonePieceGrid(self.tetris.humanPuzzle.board);
+
+        if (!humanPiece.length) {
+                return baseGrid;
+        }
+
+        var posX = self.tetris.humanPuzzle.getX();
+        var posY = self.tetris.humanPuzzle.getY();
+
+        // Fast-fail: si la posición actual ya es inválida, devolvemos solo el tablero base.
+        if (!isPositionValid(humanPiece, posX, posY, baseGrid)) {
+                return baseGrid;
+        }
+
+        while (isPositionValid(humanPiece, posX, posY + 1, baseGrid)) {
+                posY++;
+        }
+
+        return mergePiece(baseGrid, humanPiece, posX, posY);
+}
 
 function cloneAreaGrid(board) {
 	var grid = [];
