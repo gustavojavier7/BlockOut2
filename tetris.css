@@ -179,7 +179,7 @@ body, table, input {
 #tetris-keys {
         position: absolute;
         left: calc(var(--unit) * var(--panel-padding-units));
-        top: calc(var(--unit) * 9.6);
+        top: calc(var(--unit) * 18.0);
 }
 #tetris div.h5 { margin-bottom: 0.5em; display: block; font-weight: bold; }
 #tetris-keys td { padding-right: 1px; padding-bottom: 1px; }
