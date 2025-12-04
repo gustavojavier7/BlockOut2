@@ -455,9 +455,32 @@ function Tetris()
                 }
         };
 
-	// windows
-	var helpwindow = new Window("tetris-help");
-	var highscores = new Window("tetris-highscores");
+        /**
+         * Callback de consolidación humana: asegura el orden secuencial y dispara la jugada del bot.
+         * @return void
+         * @access public
+         */
+        this.onHumanPieceLocked = function()
+        {
+                if (!self.humanPuzzle) { return; }
+
+                self.humanPuzzle.reset();
+
+                if (self.humanPuzzle.mayPlace()) {
+                        self.humanPuzzle.place();
+                } else {
+                        self.gameOver();
+                        return;
+                }
+
+                if (window.bot && typeof window.bot.executeStoredMove === "function") {
+                        window.bot.executeStoredMove();
+                }
+        };
+
+        // windows
+        var helpwindow = new Window("tetris-help");
+        var highscores = new Window("tetris-highscores");
 
 	// game menu
 	document.getElementById("tetris-menu-start").onclick = function() { helpwindow.close(); highscores.close(); self.start(); this.blur(); };
@@ -1278,13 +1301,22 @@ function Tetris()
                                                 self.tetris.stats.setLines(self.tetris.stats.getLines() + lines);
                                                 self.tetris.stats.setScore(self.tetris.stats.getScore() + (1000 * self.tetris.stats.getLevel() * lines));
                                         }
-                                        // reset puzzle
-                                        self.reset();
-                                        if (self.mayPlace()) {
-                                                self.place();
+                                        // reset puzzle (humano) mediante callback o flujo original (bot)
+                                        if (self.isHumanControlled) {
+                                                if (self.tetris && typeof self.tetris.onHumanPieceLocked === 'function') {
+                                                        self.tetris.onHumanPieceLocked();
+                                                } else {
+                                                        self.reset();
+                                                        if (self.mayPlace()) {
+                                                                self.place();
+                                                        } else {
+                                                                self.tetris.gameOver();
+                                                        }
+                                                }
                                         } else {
-                                                if (self.isHumanControlled) {
-                                                        self.tetris.gameOver();
+                                                self.reset();
+                                                if (self.mayPlace()) {
+                                                        self.place();
                                                 } else {
                                                         self.stop();
                                                 }
@@ -1321,16 +1353,29 @@ function Tetris()
 						self.tetris.stats.setLines(self.tetris.stats.getLines() + lines);
 						self.tetris.stats.setScore(self.tetris.stats.getScore() + (1000 * self.tetris.stats.getLevel() * lines));
 					}
-					// reset puzzle
-					self.reset();
-					if (self.mayPlace()) {
-						self.place();
-					} else {
-						self.tetris.gameOver();
-					}
-				}
-			}
-		};
+                                        // reset puzzle
+                                        if (self.isHumanControlled) {
+                                                if (self.tetris && typeof self.tetris.onHumanPieceLocked === 'function') {
+                                                        self.tetris.onHumanPieceLocked();
+                                                } else {
+                                                        self.reset();
+                                                        if (self.mayPlace()) {
+                                                                self.place();
+                                                        } else {
+                                                                self.tetris.gameOver();
+                                                        }
+                                                }
+                                        } else {
+                                                self.reset();
+                                                if (self.mayPlace()) {
+                                                        self.place();
+                                                } else {
+                                                        self.tetris.gameOver();
+                                                }
+                                        }
+                                }
+                        }
+                };
 
 		/**
 		 * Stop the puzzle falling
@@ -1742,6 +1787,7 @@ function TetrisBot(tetrisInstance) {
         this.enabled = false;
         this.isThinking = false;
         this.predictedBoard = null; // Tablero proyectado (dual-state)
+        this.bestBotMove = null; // Movimiento óptimo pendiente de ejecutar
 
         // --- MODOS DE JUEGO (FAST-FAIL EN VALIDACIONES) ---
         const GamePlayMode = {
@@ -1935,6 +1981,7 @@ this.makeMove = function() {
         if (self.tetris.paused) { return; }
         if (!self.tetris.humanPuzzle || !self.tetris.humanPuzzle.isRunning()) { return; }
         if (self.isThinking) { return; }
+        if (self.bestBotMove) { return; }
 
         self.isThinking = true;
 
@@ -1946,13 +1993,30 @@ this.makeMove = function() {
         var bestMove = self.calculateBestMove();
 
 	// 2. Ejecutar la jugada visualmente
-	if (bestMove) {
-		self.executeMoveSmoothly(bestMove);
-	} else {
-	// Si no hay movimiento válido (game over inminente), liberar
-	self.isThinking = false;
-}
-			};
+        if (bestMove) {
+                self.bestBotMove = bestMove;
+        }
+
+        // Si no hay movimiento válido (game over inminente) o el cálculo terminó, liberar
+        self.isThinking = false;
+                        };
+
+// --- EJECUCIÓN DIFERIDA TRAS EL LOCK HUMANO ---
+
+this.executeStoredMove = function() {
+        if (!self.bestBotMove) { return; }
+
+        // Si el bot está apagado, limpiar la jugada pendiente para evitar bloqueos futuros.
+        if (!self.enabled) {
+                self.bestBotMove = null;
+                return;
+        }
+
+        self.isThinking = true;
+        var moveToExecute = self.bestBotMove;
+        self.bestBotMove = null;
+        self.executeMoveSmoothly(moveToExecute);
+};
 
 // --- EJECUCIÓN VISUAL (ANIMACIÓN) ---
 
