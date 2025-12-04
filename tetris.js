@@ -1771,7 +1771,13 @@ playStep();
 this.calculateBestMove = function() {
     var bestScore = Infinity;
     var bestMove = null;
+    var centerX = self.tetris.areaX / 2;
     var zeroHoleMoves = [];
+
+    // --- Deuda estructural inicial: evaluar el costo de agujeros del tablero actual ---
+    var initialGrid = cloneAreaGrid(self.tetris.area.board);
+    var initialEvaluation = self.evaluateGrid(initialGrid, 0);
+    var initialHolesCost = initialEvaluation.holes;
 
     for (var r = 0; r < 4; r++) {
         for (var x = 0; x < self.tetris.areaX; x++) {
@@ -1786,11 +1792,11 @@ this.calculateBestMove = function() {
                 rotation: r,
                 x: x,
                 score: score,
-                hasHoles: holesCost > 0,
+                hasZeroNetDebt: holesCost <= initialHolesCost,
                 maxHeight: getMaxHeight(simulation.grid)
             };
 
-            if (!move.hasHoles) {
+            if (move.hasZeroNetDebt) {
                 zeroHoleMoves.push(move);
             }
 
