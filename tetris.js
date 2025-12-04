@@ -1000,16 +1000,22 @@ function Tetris()
 		 * @return void
 		 * @access public
 		 */
-		this.reset = function()
-		{
-			if (this.fallDownID) {
-				clearTimeout(this.fallDownID);
-			}
-			if (this.forceMoveDownID) {
-				clearTimeout(this.forceMoveDownID);
-			}
-                        this.type = this.nextType;
-                        this.nextType = random(this.puzzles.length);
+                this.reset = function(syncTypes)
+                {
+                        if (this.fallDownID) {
+                                clearTimeout(this.fallDownID);
+                        }
+                        if (this.forceMoveDownID) {
+                                clearTimeout(this.forceMoveDownID);
+                        }
+                        // Permite forzar la semilla de la pieza para sincronizar con el bot.
+                        if (syncTypes && typeof syncTypes.current === 'number') {
+                                this.type = syncTypes.current;
+                                this.nextType = (typeof syncTypes.next === 'number') ? syncTypes.next : random(this.puzzles.length);
+                        } else {
+                                this.type = this.nextType;
+                                this.nextType = random(this.puzzles.length);
+                        }
                         this.position = 0;
                         if (this.tetris.zenMode) {
                                 this.speed = 1000;
@@ -1020,9 +1026,11 @@ function Tetris()
                         this.stopped = false;
 			this.board = [];
 			this.elements = [];
-			for (var i = 0; i < this.nextElements.length; i++) {
-				document.getElementById("tetris-nextpuzzle").removeChild(this.nextElements[i]);
-			}
+                        if (this.isHumanControlled) {
+                                for (var i = 0; i < this.nextElements.length; i++) {
+                                        document.getElementById("tetris-nextpuzzle").removeChild(this.nextElements[i]);
+                                }
+                        }
 			this.nextElements = [];
 			this.x = null;
 			this.y = null;
@@ -1113,12 +1121,14 @@ function Tetris()
 		 */
 		this.place = function()
 		{
-			// stats
-			this.tetris.stats.setPuzzles(this.tetris.stats.getPuzzles() + 1);
-			if (this.tetris.stats.getPuzzles() >= (10 + this.tetris.stats.getLevel() * 2)) {
-				this.tetris.stats.setLevel(this.tetris.stats.getLevel() + 1);
-				this.tetris.stats.setPuzzles(0);
-			}
+                        // stats (solo humano para evitar contaminar el puntaje con el bot)
+                        if (this.isHumanControlled) {
+                                this.tetris.stats.setPuzzles(this.tetris.stats.getPuzzles() + 1);
+                                if (this.tetris.stats.getPuzzles() >= (10 + this.tetris.stats.getLevel() * 2)) {
+                                        this.tetris.stats.setLevel(this.tetris.stats.getLevel() + 1);
+                                        this.tetris.stats.setPuzzles(0);
+                                }
+                        }
 			// init
 			var puzzle = this.puzzles[this.type];
 			var areaStartX = parseInt((this.area.x - puzzle[0].length) / 2);
@@ -1148,31 +1158,43 @@ function Tetris()
 				if (lineFound) {
 					lines++;
 				}
-			}
-			this.running = true;
-			this.fallDownID = setTimeout(this.fallDown, this.speed);
-			// next puzzle
-			var nextPuzzle = this.puzzles[this.nextType];
-			for (var y = 0; y < nextPuzzle.length; y++) {
-				for (var x = 0; x < nextPuzzle[y].length; x++) {
-					if (nextPuzzle[y][x]) {
-						var el = document.createElement("div");
-						el.className = "block" + this.nextType;
-						el.style.left = (x * this.area.unit) + "px";
-						el.style.top = (y * this.area.unit) + "px";
-						document.getElementById("tetris-nextpuzzle").appendChild(el);
-						this.nextElements.push(el);
-}
-}
-}
+                        }
+                        this.running = true;
+                        this.fallDownID = setTimeout(this.fallDown, this.speed);
+                        // Sincronizar creación de la siguiente pieza del bot y forzar su spawn inicial.
+                        if (this.isHumanControlled && this.tetris.botPuzzle && !this.tetris.botPuzzle.isRunning()) {
+                                var syncSeed = { current: this.type, next: this.nextType };
+                                this.tetris.botPuzzle.reset(syncSeed);
 
-			// Activar el bot para la nueva pieza cuando corresponda
-			if (window.bot && window.bot.enabled) {
-				setTimeout(function() {
-					window.bot.makeMove();
-				}, 100);
-}
-			};
+                                if (this.tetris.botPuzzle.mayPlace()) {
+                                        this.tetris.botPuzzle.place();
+                                }
+                        }
+
+                        // next puzzle (solo humano para mantener la UI limpia)
+                        if (this.isHumanControlled) {
+                                var nextPuzzle = this.puzzles[this.nextType];
+                                for (var y = 0; y < nextPuzzle.length; y++) {
+                                        for (var x = 0; x < nextPuzzle[y].length; x++) {
+                                                if (nextPuzzle[y][x]) {
+                                                        var el = document.createElement("div");
+                                                        el.className = "block" + this.nextType;
+                                                        el.style.left = (x * this.area.unit) + "px";
+                                                        el.style.top = (y * this.area.unit) + "px";
+                                                        document.getElementById("tetris-nextpuzzle").appendChild(el);
+                                                        this.nextElements.push(el);
+                                                }
+                                        }
+                                }
+                        }
+
+                        // Activar el bot para la nueva pieza cuando corresponda
+                        if (this.isHumanControlled && window.bot && window.bot.enabled) {
+                                setTimeout(function() {
+                                        window.bot.makeMove();
+                                }, 100);
+                        }
+                };
 
 		/**
 		 * Remove puzzle from the area.
@@ -1223,25 +1245,29 @@ function Tetris()
 					self.fallDownID = setTimeout(self.fallDown, self.speed);
 				} else {
 					// move blocks into area board
-					for (var i = 0; i < self.elements.length; i++) {
-						self.area.addElement(self.elements[i]);
-					}
-					// stats
-					var lines = self.area.removeFullLines();
-					if (lines) {
-						self.tetris.stats.setLines(self.tetris.stats.getLines() + lines);
-						self.tetris.stats.setScore(self.tetris.stats.getScore() + (1000 * self.tetris.stats.getLevel() * lines));
-					}
-					// reset puzzle
-					self.reset();
-					if (self.mayPlace()) {
-						self.place();
-					} else {
-						self.tetris.gameOver();
-					}
-				}
-			}
-		};
+                                        for (var i = 0; i < self.elements.length; i++) {
+                                                self.area.addElement(self.elements[i]);
+                                        }
+                                        // stats
+                                        var lines = self.area.removeFullLines();
+                                        if (lines && self.isHumanControlled) {
+                                                self.tetris.stats.setLines(self.tetris.stats.getLines() + lines);
+                                                self.tetris.stats.setScore(self.tetris.stats.getScore() + (1000 * self.tetris.stats.getLevel() * lines));
+                                        }
+                                        // reset puzzle
+                                        self.reset();
+                                        if (self.mayPlace()) {
+                                                self.place();
+                                        } else {
+                                                if (self.isHumanControlled) {
+                                                        self.tetris.gameOver();
+                                                } else {
+                                                        self.stop();
+                                                }
+                                        }
+                                }
+                        }
+                };
 
 		/**
 		 * After clicking "space" the puzzle is forced to move down, no user action is performed after
