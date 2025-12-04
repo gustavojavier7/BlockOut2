@@ -1712,9 +1712,10 @@ function TetrisBot(tetrisInstance) {
 var self = this;
 
 // --- CONTROL DE MODO AUTOMÁTICO ---
-// El modo automático permite que la IA seleccione el perfil de juego según la ocupación del tablero.
+// El modo automático permite que la IA seleccione el perfil de juego según la altura crítica del tablero.
 let autoMode = true;         // IA decide modo dinámico
 let manualModeOverride = false;  // Usuario cambia modo
+let lastAutoMode = self.gameplayMode; // Persistencia para histeresis
 
 var autoModeToggle = document.getElementById("auto-mode-toggle");
 if (autoModeToggle) {
@@ -1746,6 +1747,7 @@ this.setGameplayMode = function(mode) {
         }
 
         self.gameplayMode = mode;
+        lastAutoMode = mode;
 
         var indicator = document.getElementById("mode-indicator");
         if (indicator) {
@@ -1755,22 +1757,34 @@ this.setGameplayMode = function(mode) {
         console.info("[BOT] Modo activo:", self.getModeName(mode));
 };
 
-function calculateOccupancy(grid) {
+function calculateMaxHeightRatio(grid) {
         if (!grid || !grid.length || !grid[0].length) {
-                console.warn("[BOT] Grid inválido para calcular ocupación; se usará el modo manual.");
+                console.warn("[BOT] Grid inválido para calcular altura; se usará el modo manual.");
                 return 1;
         }
 
-        var filled = 0;
-        var total = grid.length * grid[0].length;
+        var totalRows = grid.length;
+        var totalCols = grid[0].length;
+        var highest = 0;
 
-        for (var r = 0; r < grid.length; r++) {
-                for (var c = 0; c < grid[0].length; c++) {
-                        if (grid[r][c] !== 0) { filled++; }
+        for (var x = 0; x < totalCols; x++) {
+                var colHeight = 0;
+                var found = false;
+
+                for (var y = 0; y < totalRows; y++) {
+                        if (grid[y][x] !== 0) {
+                                colHeight = totalRows - y;
+                                found = true;
+                                break;
+                        }
+                }
+
+                if (found && colHeight > highest) {
+                        highest = colHeight;
                 }
         }
 
-        return filled / total;
+        return highest / totalRows;
 }
 
 function getActiveMode(grid) {
@@ -1778,13 +1792,48 @@ function getActiveMode(grid) {
                 return self.gameplayMode;
         }
 
-        var occupancy = calculateOccupancy(grid);
+        var maxHeightRatio = calculateMaxHeightRatio(grid);
+        var thresholds = {
+                PRO_ATTACK: 0.20,
+                TETRIS_BUILDER: 0.45,
+                SURVIVAL: 0.70
+        };
 
-        if (occupancy <= 0.20) return GamePlayMode.PRO_ATTACK;
-        if (occupancy <= 0.40) return GamePlayMode.TETRIS_BUILDER;
-        if (occupancy <= 0.60) return GamePlayMode.BALANCED;
-        if (occupancy <= 0.80) return GamePlayMode.SURVIVAL;
-        return GamePlayMode.ZEN;
+        var candidate;
+
+        if (maxHeightRatio <= thresholds.PRO_ATTACK) {
+                candidate = GamePlayMode.PRO_ATTACK;
+        } else if (maxHeightRatio <= thresholds.TETRIS_BUILDER) {
+                candidate = GamePlayMode.TETRIS_BUILDER;
+        } else if (maxHeightRatio <= thresholds.SURVIVAL) {
+                candidate = GamePlayMode.SURVIVAL;
+        } else {
+                candidate = GamePlayMode.ZEN;
+        }
+
+        // --- HISTERESIS PARA EVITAR OSCILACIONES ---
+        var hysteresisGap = 0.05;
+
+        if (lastAutoMode === GamePlayMode.ZEN && candidate !== GamePlayMode.ZEN) {
+                if (maxHeightRatio > (thresholds.SURVIVAL - hysteresisGap)) {
+                        return lastAutoMode;
+                }
+        }
+
+        if (lastAutoMode === GamePlayMode.SURVIVAL && candidate === GamePlayMode.TETRIS_BUILDER) {
+                if (maxHeightRatio > (thresholds.TETRIS_BUILDER - hysteresisGap)) {
+                        return lastAutoMode;
+                }
+        }
+
+        if (lastAutoMode === GamePlayMode.TETRIS_BUILDER && candidate === GamePlayMode.PRO_ATTACK) {
+                if (maxHeightRatio > (thresholds.PRO_ATTACK - hysteresisGap)) {
+                        return lastAutoMode;
+                }
+        }
+
+        lastAutoMode = candidate;
+        return candidate;
 }
 
 // Inicializar indicador en el modo predeterminado
@@ -1960,7 +2009,7 @@ this.evaluateGrid = function(grid, linesCleared, skipLookahead) {
     var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
 
     var modeToUse = getActiveMode(grid);
-    var occupancyRatio = calculateOccupancy(grid);
+    var maxHeightRatio = 0;
 
     var COMMON_SCALE = 10000;
     
@@ -2029,7 +2078,9 @@ this.evaluateGrid = function(grid, linesCleared, skipLookahead) {
     }
 
     // --- CÁLCULO TEMPRANO DE RIESGO LOCAL ---
-    var riskLocalBase = (occupiedCells / MAX_RISK_CELLS) * 100;
+    // Riesgo principal basado en la altura máxima de columna (no en ocupación).
+    maxHeightRatio = maxHeight / TOTAL_ROWS;
+    var riskLocalBase = maxHeightRatio * 100;
 
     // --- AJUSTE DE PRIORIDADES SEGÚN RIESGO ---
     if (riskLocalBase < 50) {
@@ -2149,8 +2200,8 @@ this.evaluateGrid = function(grid, linesCleared, skipLookahead) {
     var weightFuture = 0;
 
     if (isAutoLookaheadEnabled) {
-            weightCurrent = occupancyRatio > 0.5 ? 0.70 : 0.40;
-            weightFuture = occupancyRatio > 0.5 ? 0.30 : 0.60;
+            weightCurrent = maxHeightRatio > 0.5 ? 0.70 : 0.40;
+            weightFuture = maxHeightRatio > 0.5 ? 0.30 : 0.60;
     }
 
     if (isAutoLookaheadEnabled && self.tetris && self.tetris.puzzle && self.tetris.puzzle.puzzles) {
@@ -2163,8 +2214,12 @@ this.evaluateGrid = function(grid, linesCleared, skipLookahead) {
 
                     if (scoreFuture !== null) {
                             finalScore = (scoreCurrent * weightCurrent) + (scoreFuture * weightFuture);
+                    } else {
+                            finalScore = scoreCurrent;
                     }
             }
+    } else {
+            finalScore = scoreCurrent;
     }
 
     if (scoreFuture !== null) {
