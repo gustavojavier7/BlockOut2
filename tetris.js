@@ -123,9 +123,11 @@ function Tetris()
 {
 	var self = this;
 
-	this.stats = new Stats();
-	this.puzzle = null;
-	this.area = null;
+        this.stats = new Stats();
+        this.humanPuzzle = null;
+        this.botPuzzle = null;
+        this.area = null;
+        // Dual-state: mantener referencias separadas para la pieza humana y la pieza del bot.
 
 	this.unit  = 20; // unit = x pixels
 	this.areaX = 20; // area width = x units
@@ -217,37 +219,44 @@ function Tetris()
 			}
 		}
 
-		if (self.puzzle) {
-			var puzzleBoard = self.puzzle.board;
-			for (var y2 = 0; y2 < puzzleBoard.length; y2++) {
-				for (var x2 = 0; x2 < puzzleBoard[y2].length; x2++) {
-					if (puzzleBoard[y2][x2]) {
-						puzzleBoard[y2][x2].style.left = (self.puzzle.getX() + x2) * self.area.unit + 'px';
-						puzzleBoard[y2][x2].style.top = (self.puzzle.getY() + y2) * self.area.unit + 'px';
-					}
-				}
-			}
+                var puzzlesToRescale = [self.humanPuzzle, self.botPuzzle];
+                for (var index = 0; index < puzzlesToRescale.length; index++) {
+                        var activePuzzle = puzzlesToRescale[index];
+                        if (!activePuzzle || !activePuzzle.board || !activePuzzle.board.length) {
+                                continue;
+                        }
 
-			var nextContainer = document.getElementById('tetris-nextpuzzle');
-			if (nextContainer) {
-				nextContainer.innerHTML = '';
-				self.puzzle.nextElements = [];
-				var nextPuzzle = self.puzzle.puzzles[self.puzzle.nextType];
-				for (var ny = 0; ny < nextPuzzle.length; ny++) {
-					for (var nx = 0; nx < nextPuzzle[ny].length; nx++) {
-						if (nextPuzzle[ny][nx]) {
-							var nextEl = document.createElement('div');
-							nextEl.className = 'block' + self.puzzle.nextType;
-							nextEl.style.left = (nx * self.area.unit) + 'px';
-							nextEl.style.top = (ny * self.area.unit) + 'px';
-							nextContainer.appendChild(nextEl);
-							self.puzzle.nextElements.push(nextEl);
-						}
-					}
-				}
-			}
-		}
-	};
+                        for (var y2 = 0; y2 < activePuzzle.board.length; y2++) {
+                                for (var x2 = 0; x2 < activePuzzle.board[y2].length; x2++) {
+                                        if (activePuzzle.board[y2][x2]) {
+                                                activePuzzle.board[y2][x2].style.left = (activePuzzle.getX() + x2) * self.area.unit + 'px';
+                                                activePuzzle.board[y2][x2].style.top = (activePuzzle.getY() + y2) * self.area.unit + 'px';
+                                        }
+                                }
+                        }
+                }
+
+                if (self.humanPuzzle) {
+                        var nextContainer = document.getElementById('tetris-nextpuzzle');
+                        if (nextContainer) {
+                                nextContainer.innerHTML = '';
+                                self.humanPuzzle.nextElements = [];
+                                var nextPuzzle = self.humanPuzzle.puzzles[self.humanPuzzle.nextType];
+                                for (var ny = 0; ny < nextPuzzle.length; ny++) {
+                                        for (var nx = 0; nx < nextPuzzle[ny].length; nx++) {
+                                                if (nextPuzzle[ny][nx]) {
+                                                        var nextEl = document.createElement('div');
+                                                        nextEl.className = 'block' + self.humanPuzzle.nextType;
+                                                        nextEl.style.left = (nx * self.area.unit) + 'px';
+                                                        nextEl.style.top = (ny * self.area.unit) + 'px';
+                                                        nextContainer.appendChild(nextEl);
+                                                        self.humanPuzzle.nextElements.push(nextEl);
+                                                }
+                                        }
+                                }
+                        }
+                }
+        };
 
 	/**
 	 * Calcula el tamaño de la unidad en función del espacio disponible.
@@ -276,37 +285,42 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-	this.start = function()
-	{
-		if (self.puzzle && !confirm('Are you sure you want to start a new game ?')) return;
-		self.updateResponsiveUnit();
-		self.reset();
-		self.stats.start();
-		document.getElementById("tetris-nextpuzzle").style.display = "block";
-		document.getElementById("tetris-keys").style.display = "none";
-		self.area = new Area(self.unit, self.areaX, self.areaY, "tetris-area");
-		self.puzzle = new Puzzle(self, self.area);
-		if (self.puzzle.mayPlace()) {
-			self.puzzle.place();
-		} else {
-			self.gameOver();
-		}
-	};
+        this.start = function()
+        {
+                if ((self.humanPuzzle || self.botPuzzle) && !confirm('Are you sure you want to start a new game ?')) return;
+                self.updateResponsiveUnit();
+                self.reset();
+                self.stats.start();
+                document.getElementById("tetris-nextpuzzle").style.display = "block";
+                document.getElementById("tetris-keys").style.display = "none";
+                self.area = new Area(self.unit, self.areaX, self.areaY, "tetris-area");
+                self.humanPuzzle = new Puzzle(self, self.area, true);
+                self.botPuzzle = new Puzzle(self, self.area, false);
+                if (self.humanPuzzle.mayPlace()) {
+                        self.humanPuzzle.place();
+                } else {
+                        self.gameOver();
+                }
+        };
 
 	/**
 	 * @return void
 	 * @access public event
 	 */
-	this.reset = function()
-	{
-		if (self.puzzle) {
-			self.puzzle.destroy();
-			self.puzzle = null;
-		}
-		if (self.area) {
-			self.area.destroy();
-			self.area = null;
-		}
+        this.reset = function()
+        {
+                if (self.humanPuzzle) {
+                        self.humanPuzzle.destroy();
+                        self.humanPuzzle = null;
+                }
+                if (self.botPuzzle) {
+                        self.botPuzzle.destroy();
+                        self.botPuzzle = null;
+                }
+                if (self.area) {
+                        self.area.destroy();
+                        self.area = null;
+                }
 		document.getElementById("tetris-gameover").style.display = "none";
 		document.getElementById("tetris-nextpuzzle").style.display = "none";
 		document.getElementById("tetris-keys").style.display = "block";
@@ -321,26 +335,26 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-	this.pause = function()
-	{
-		if (self.puzzle == null) return;
-		if (self.paused) {
-			self.puzzle.running = true;
-			self.puzzle.fallDownID = setTimeout(self.puzzle.fallDown, self.puzzle.speed);
-			document.getElementById('tetris-pause').style.display = 'block';
-			document.getElementById('tetris-resume').style.display = 'none';
-			self.stats.timerId = setInterval(self.stats.incTime, 1000);
-			self.paused = false;
-		} else {
-			if (!self.puzzle.isRunning()) return;
-			if (self.puzzle.fallDownID) clearTimeout(self.puzzle.fallDownID);
-			document.getElementById('tetris-pause').style.display = 'none';
-			document.getElementById('tetris-resume').style.display = 'block';
-			clearTimeout(self.stats.timerId);
-			self.paused = true;
-			self.puzzle.running = false;
-		}
-	};
+        this.pause = function()
+        {
+                if (self.humanPuzzle == null) return;
+                if (self.paused) {
+                        self.humanPuzzle.running = true;
+                        self.humanPuzzle.fallDownID = setTimeout(self.humanPuzzle.fallDown, self.humanPuzzle.speed);
+                        document.getElementById('tetris-pause').style.display = 'block';
+                        document.getElementById('tetris-resume').style.display = 'none';
+                        self.stats.timerId = setInterval(self.stats.incTime, 1000);
+                        self.paused = false;
+                } else {
+                        if (!self.humanPuzzle.isRunning()) return;
+                        if (self.humanPuzzle.fallDownID) clearTimeout(self.humanPuzzle.fallDownID);
+                        document.getElementById('tetris-pause').style.display = 'none';
+                        document.getElementById('tetris-resume').style.display = 'block';
+                        clearTimeout(self.stats.timerId);
+                        self.paused = true;
+                        self.humanPuzzle.running = false;
+                }
+        };
 
 	/**
 	 * End game.
@@ -348,13 +362,18 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-	this.gameOver = function()
-	{
-		self.stats.stop();
-		self.puzzle.stop();
-		document.getElementById("tetris-nextpuzzle").style.display = "none";
-		document.getElementById("tetris-gameover").style.display = "block";
-		if (this.highscores.mayAdd(this.stats.getScore())) {
+        this.gameOver = function()
+        {
+                self.stats.stop();
+                if (self.humanPuzzle) {
+                        self.humanPuzzle.stop();
+                }
+                if (self.botPuzzle) {
+                        self.botPuzzle.stop();
+                }
+                document.getElementById("tetris-nextpuzzle").style.display = "none";
+                document.getElementById("tetris-gameover").style.display = "block";
+                if (this.highscores.mayAdd(this.stats.getScore())) {
 			var name = prompt("Game Over !\nEnter your name:", "");
 			if (name && name.trim().length) {
 				this.highscores.add(name, this.stats.getScore());
@@ -366,70 +385,70 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-	this.up = function()
-	{
-		if (self.puzzle && self.puzzle.isRunning() && !self.puzzle.isStopped()) {
-			if (self.puzzle.mayRotate()) {
-				self.puzzle.rotate();
-				self.stats.setActions(self.stats.getActions() + 1);
-			}
-		}
-	};
+        this.up = function()
+        {
+                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
+                        if (self.humanPuzzle.mayRotate()) {
+                                self.humanPuzzle.rotate();
+                                self.stats.setActions(self.stats.getActions() + 1);
+                        }
+                }
+        };
 
 	/**
 	 * @return void
 	 * @access public event
 	 */
-	this.down = function()
-	{
-		if (self.puzzle && self.puzzle.isRunning() && !self.puzzle.isStopped()) {
-			if (self.puzzle.mayMoveDown()) {
-				self.stats.setScore(self.stats.getScore() + 5 + self.stats.getLevel());
-				self.puzzle.moveDown();
-				self.stats.setActions(self.stats.getActions() + 1);
-			}
-		}
-	};
+        this.down = function()
+        {
+                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
+                        if (self.humanPuzzle.mayMoveDown()) {
+                                self.stats.setScore(self.stats.getScore() + 5 + self.stats.getLevel());
+                                self.humanPuzzle.moveDown();
+                                self.stats.setActions(self.stats.getActions() + 1);
+                        }
+                }
+        };
 
 	/**
 	 * @return void
 	 * @access public event
 	 */
-	this.left = function()
-	{
-		if (self.puzzle && self.puzzle.isRunning() && !self.puzzle.isStopped()) {
-			if (self.puzzle.mayMoveLeft()) {
-				self.puzzle.moveLeft();
-				self.stats.setActions(self.stats.getActions() + 1);
-			}
-		}
-	};
+        this.left = function()
+        {
+                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
+                        if (self.humanPuzzle.mayMoveLeft()) {
+                                self.humanPuzzle.moveLeft();
+                                self.stats.setActions(self.stats.getActions() + 1);
+                        }
+                }
+        };
 
 	/**
 	 * @return void
 	 * @access public event
 	 */
-	this.right = function()
-	{
-		if (self.puzzle && self.puzzle.isRunning() && !self.puzzle.isStopped()) {
-			if (self.puzzle.mayMoveRight()) {
-				self.puzzle.moveRight();
-				self.stats.setActions(self.stats.getActions() + 1);
-			}
-		}
-	};
+        this.right = function()
+        {
+                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
+                        if (self.humanPuzzle.mayMoveRight()) {
+                                self.humanPuzzle.moveRight();
+                                self.stats.setActions(self.stats.getActions() + 1);
+                        }
+                }
+        };
 
 	/**
 	 * @return void
 	 * @access public event
 	 */
-	this.space = function()
-	{
-		if (self.puzzle && self.puzzle.isRunning() && !self.puzzle.isStopped()) {
-			self.puzzle.stop();
-			self.puzzle.forceMoveDown();
-		}
-	};
+        this.space = function()
+        {
+                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
+                        self.humanPuzzle.stop();
+                        self.humanPuzzle.forceMoveDown();
+                }
+        };
 
 	// windows
 	var helpwindow = new Window("tetris-help");
@@ -483,10 +502,10 @@ function Tetris()
                         self.zenMode = this.checked;
 
                         // Aplicar la nueva velocidad inmediatamente si el juego está corriendo
-                        if (self.puzzle && self.puzzle.isRunning() && self.puzzle.fallDownID) {
-                                self.puzzle.speed = self.zenMode ? 1000 : (80 + (700 / self.stats.getLevel()));
-                                clearTimeout(self.puzzle.fallDownID);
-                                self.puzzle.fallDownID = setTimeout(self.puzzle.fallDown, self.puzzle.speed);
+                        if (self.humanPuzzle && self.humanPuzzle.isRunning() && self.humanPuzzle.fallDownID) {
+                                self.humanPuzzle.speed = self.zenMode ? 1000 : (80 + (700 / self.stats.getLevel()));
+                                clearTimeout(self.humanPuzzle.fallDownID);
+                                self.humanPuzzle.fallDownID = setTimeout(self.humanPuzzle.fallDown, self.humanPuzzle.speed);
                         }
                 };
         }
@@ -911,11 +930,12 @@ function Tetris()
 	 * Puzzle consists of blocks.
 	 * Each puzzle after rotating 4 times, returns to its primitive position.
 	 */
-	function Puzzle(tetris, area)
-	{
-		var self = this;
-		this.tetris = tetris;
-		this.area = area;
+        function Puzzle(tetris, area, isHumanControlled)
+        {
+                var self = this;
+                this.tetris = tetris;
+                this.area = area;
+                this.isHumanControlled = !!isHumanControlled; // true si la pieza es controlada por el jugador humano
 
 		// timeout ids
 		this.fallDownID = null;
@@ -1848,7 +1868,7 @@ this.toggle = function() {
 	if (self.enabled) {
 		if (btn) { btn.innerHTML = "Jugar Humano"; }
 		// Si hay un juego activo, tomar control inmediato
-		if (self.tetris.puzzle && self.tetris.puzzle.isRunning()) {
+		if (self.tetris.humanPuzzle && self.tetris.humanPuzzle.isRunning()) {
 			self.makeMove();
 		}
 } else {
@@ -1862,7 +1882,7 @@ self.isThinking = false; // Detener procesos pendientes
 this.makeMove = function() {
 	if (!self.enabled) { return; }
 	if (self.tetris.paused) { return; }
-	if (!self.tetris.puzzle || !self.tetris.puzzle.isRunning()) { return; }
+	if (!self.tetris.humanPuzzle || !self.tetris.humanPuzzle.isRunning()) { return; }
 	if (self.isThinking) { return; }
 
 	self.isThinking = true;
@@ -1889,7 +1909,7 @@ this.executeMoveSmoothly = function(move) {
 	for (var i = 0; i < move.rotation; i++) { actions.push('up'); }
 
 	// 2. Planificar movimiento lateral
-	var currentX = self.tetris.puzzle.getX();
+	var currentX = self.tetris.humanPuzzle.getX();
 	var targetX = move.x;
 	var dx = targetX - currentX;
 	var dir = dx > 0 ? 'right' : 'left';
@@ -1902,7 +1922,7 @@ this.executeMoveSmoothly = function(move) {
 	// 4. Ejecutar secuencia con retardo
 	var k = 0;
 	function playStep() {
-		if (!self.enabled || !self.tetris.puzzle || self.tetris.puzzle.isStopped()) {
+		if (!self.enabled || !self.tetris.humanPuzzle || self.tetris.humanPuzzle.isStopped()) {
 			self.isThinking = false;
 			return;
 		}
@@ -2204,10 +2224,10 @@ this.evaluateGrid = function(grid, linesCleared, skipLookahead) {
             weightFuture = maxHeightRatio > 0.5 ? 0.30 : 0.60;
     }
 
-    if (isAutoLookaheadEnabled && self.tetris && self.tetris.puzzle && self.tetris.puzzle.puzzles) {
-            var nextType = self.tetris.puzzle.nextType;
+    if (isAutoLookaheadEnabled && self.tetris && self.tetris.humanPuzzle && self.tetris.humanPuzzle.puzzles) {
+            var nextType = self.tetris.humanPuzzle.nextType;
             if (nextType !== null && nextType !== undefined) {
-                    var nextPiece = self.tetris.puzzle.puzzles[nextType];
+                    var nextPiece = self.tetris.humanPuzzle.puzzles[nextType];
 
                     // Simular la mejor colocación posible de la siguiente pieza.
                     scoreFuture = simulateNextPiece(grid, nextPiece);
@@ -2276,12 +2296,12 @@ function simulateNextPiece(baseGrid, nextPiece) {
 
 // --- SIMULACIÓN FÍSICA ---
 this.simulateDrop = function(rotation, targetX) {
-	if (!self.tetris || !self.tetris.area || !self.tetris.puzzle) {
+	if (!self.tetris || !self.tetris.area || !self.tetris.humanPuzzle) {
 		return { isValid: false, grid: [], linesCleared: 0 };
 	}
 
 var areaGrid = cloneAreaGrid(self.tetris.area.board);
-var pieceGrid = clonePieceGrid(self.tetris.puzzle.board);
+var pieceGrid = clonePieceGrid(self.tetris.humanPuzzle.board);
 
 if (!pieceGrid.length) {
 	return { isValid: false, grid: [], linesCleared: 0 };
@@ -2291,8 +2311,8 @@ for (var i = 0; i < rotation; i++) {
 	pieceGrid = rotateGrid(pieceGrid);
 }
 
-var posX = self.tetris.puzzle.getX();
-var posY = self.tetris.puzzle.getY();
+var posX = self.tetris.humanPuzzle.getX();
+var posY = self.tetris.humanPuzzle.getY();
 
 if (!isPositionValid(pieceGrid, posX, posY, areaGrid)) {
 	return { isValid: false, grid: [], linesCleared: 0 };
