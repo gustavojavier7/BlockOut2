@@ -299,6 +299,12 @@ function Tetris()
                 self.areaX = self.isCoopMode ? 20 : 12;
                 self.areaY = self.isCoopMode ? 20 : 22;
 
+                // Sincronizar el checkbox visual del modo cooperativo con el estado actual.
+                var coopCheckbox = document.getElementById('tetris-coop-mode');
+                if (coopCheckbox) {
+                        coopCheckbox.checked = self.isCoopMode;
+                }
+
                 // Sincronizar el estado del bot con el modo seleccionado.
                 if (window.bot) {
                         if (self.isCoopMode && !window.bot.enabled) {
@@ -556,6 +562,15 @@ function Tetris()
         keyboard.set(keyboard.right, this.right);
         keyboard.set(keyboard.space, this.space);
         document.onkeydown = keyboard.event;
+
+        // Modo Co-op: cuadro de selección alineado al selector ZEN.
+        var coopCheckbox = document.getElementById("tetris-coop-mode");
+        if (coopCheckbox) {
+                coopCheckbox.onchange = function()
+                {
+                        self.setGameMode(this.checked);
+                };
+        }
 
         // Modo ZEN: controla la velocidad fija de caída
         var zenCheckbox = document.getElementById("tetris-zen-mode");
@@ -1227,7 +1242,9 @@ function Tetris()
 				}
                         }
                         this.running = true;
-                        this.fallDownID = setTimeout(this.fallDown, this.speed);
+                        // En modo cooperativo, la pieza del bot debe permanecer inerte hasta que se ejecute su jugada forzada.
+                        var shouldAutoFall = this.isHumanControlled || !this.tetris.isCoopMode;
+                        this.fallDownID = shouldAutoFall ? setTimeout(this.fallDown, this.speed) : null;
                         // Sincronizar creación de la siguiente pieza del bot y forzar su spawn inicial.
                         if (this.isHumanControlled && this.tetris.botPuzzle && !this.tetris.botPuzzle.isRunning()) {
                                 var syncSeed = { current: this.type, next: this.nextType };

@@ -28,7 +28,10 @@
                                 <div style="display: none;" id="tetris-resume">
                                         <a href="javascript:void(0)" id="tetris-menu-resume">Resume</a>
                                 </div>
-                                <div><a href="javascript:void(0)" id="tetris-menu-ai">Modo Co-op Bot</a></div>
+                                <div style="padding-top: 5px; padding-bottom: 5px; padding-left: 15px;">
+                                        <input type="checkbox" id="tetris-coop-mode">
+                                        <label for="tetris-coop-mode" id="tetris-menu-ai" style="font-size: 11px;">Modo Co-op Bot</label>
+                                </div>
                                 <div style="padding-top: 5px; padding-bottom: 5px; padding-left: 15px;">
                                         <input type="checkbox" id="tetris-zen-mode">
                                         <label for="tetris-zen-mode" style="font-size: 11px;">Modo ZEN (1 celda/s)</label>
@@ -153,14 +156,6 @@
                 if (btnClassic) {
                         btnClassic.onclick = function() {
                                 tetris.setGameMode(false);
-                                this.blur();
-                        };
-                }
-
-                var btnAi = document.getElementById("tetris-menu-ai");
-                if (btnAi) {
-                        btnAi.onclick = function() {
-                                tetris.setGameMode(true);
                                 this.blur();
                         };
                 }
