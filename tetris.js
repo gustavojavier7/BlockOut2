@@ -432,13 +432,19 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-        this.up = function()
+        this.up = function(targetPuzzle)
         {
-                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
-                        if (self.humanPuzzle.mayRotate()) {
-                                self.humanPuzzle.rotate();
+                var actor = targetPuzzle || self.humanPuzzle;
+
+                // Fast-fail: sin actor activo no hay nada que rotar.
+                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+
+                if (actor.mayRotate()) {
+                        actor.rotate();
+
+                        if (actor.isHumanControlled) {
                                 self.stats.setActions(self.stats.getActions() + 1);
-                                self.humanPuzzle.notifyBotAfterHumanMove();
+                                actor.notifyBotAfterHumanMove();
                         }
                 }
         };
@@ -447,14 +453,22 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-        this.down = function()
+        this.down = function(targetPuzzle)
         {
-                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
-                        if (self.humanPuzzle.mayMoveDown()) {
+                var actor = targetPuzzle || self.humanPuzzle;
+
+                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+
+                if (actor.mayMoveDown()) {
+                        if (actor.isHumanControlled) {
                                 self.stats.setScore(self.stats.getScore() + 5 + self.stats.getLevel());
-                                self.humanPuzzle.moveDown();
                                 self.stats.setActions(self.stats.getActions() + 1);
-                                self.humanPuzzle.notifyBotAfterHumanMove();
+                        }
+
+                        actor.moveDown();
+
+                        if (actor.isHumanControlled) {
+                                actor.notifyBotAfterHumanMove();
                         }
                 }
         };
@@ -463,13 +477,18 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-        this.left = function()
+        this.left = function(targetPuzzle)
         {
-                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
-                        if (self.humanPuzzle.mayMoveLeft()) {
-                                self.humanPuzzle.moveLeft();
+                var actor = targetPuzzle || self.humanPuzzle;
+
+                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+
+                if (actor.mayMoveLeft()) {
+                        actor.moveLeft();
+
+                        if (actor.isHumanControlled) {
                                 self.stats.setActions(self.stats.getActions() + 1);
-                                self.humanPuzzle.notifyBotAfterHumanMove();
+                                actor.notifyBotAfterHumanMove();
                         }
                 }
         };
@@ -478,13 +497,18 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-        this.right = function()
+        this.right = function(targetPuzzle)
         {
-                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
-                        if (self.humanPuzzle.mayMoveRight()) {
-                                self.humanPuzzle.moveRight();
+                var actor = targetPuzzle || self.humanPuzzle;
+
+                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+
+                if (actor.mayMoveRight()) {
+                        actor.moveRight();
+
+                        if (actor.isHumanControlled) {
                                 self.stats.setActions(self.stats.getActions() + 1);
-                                self.humanPuzzle.notifyBotAfterHumanMove();
+                                actor.notifyBotAfterHumanMove();
                         }
                 }
         };
@@ -493,12 +517,17 @@ function Tetris()
 	 * @return void
 	 * @access public event
 	 */
-        this.space = function()
+        this.space = function(targetPuzzle)
         {
-                if (self.humanPuzzle && self.humanPuzzle.isRunning() && !self.humanPuzzle.isStopped()) {
-                        self.humanPuzzle.stop();
-                        self.humanPuzzle.forceMoveDown();
-                        self.humanPuzzle.notifyBotAfterHumanMove();
+                var actor = targetPuzzle || self.humanPuzzle;
+
+                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+
+                actor.stop();
+                actor.forceMoveDown();
+
+                if (actor.isHumanControlled) {
+                        actor.notifyBotAfterHumanMove();
                 }
         };
 
@@ -2081,7 +2110,8 @@ this.setGameplayMode(this.gameplayMode);
 this.makeMove = function() {
         if (!self.enabled) { return; }
         if (self.tetris.paused) { return; }
-        if (!self.tetris.humanPuzzle || !self.tetris.humanPuzzle.isRunning()) { return; }
+        var actorPuzzle = self.tetris.isCoopMode && self.tetris.botPuzzle ? self.tetris.botPuzzle : self.tetris.humanPuzzle;
+        if (!actorPuzzle || !actorPuzzle.isRunning()) { return; }
         if (self.isThinking) { return; }
         if (self.bestBotMove) { return; }
 
@@ -2123,45 +2153,48 @@ this.executeStoredMove = function() {
 // --- EJECUCIÓN VISUAL (ANIMACIÓN) ---
 
 this.executeMoveSmoothly = function(move) {
-	var actions = [];
+        var actions = [];
 
-	// 1. Planificar rotaciones
-	for (var i = 0; i < move.rotation; i++) { actions.push('up'); }
+        var actor = self.tetris.isCoopMode && self.tetris.botPuzzle ? self.tetris.botPuzzle : self.tetris.humanPuzzle;
+        if (!actor) { return; }
 
-	// 2. Planificar movimiento lateral
-	var currentX = self.tetris.humanPuzzle.getX();
-	var targetX = move.x;
-	var dx = targetX - currentX;
-	var dir = dx > 0 ? 'right' : 'left';
+        // 1. Planificar rotaciones
+        for (var i = 0; i < move.rotation; i++) { actions.push('up'); }
 
-	for (var j = 0; j < Math.abs(dx); j++) { actions.push(dir); }
+        // 2. Planificar movimiento lateral
+        var currentX = actor.getX();
+        var targetX = move.x;
+        var dx = targetX - currentX;
+        var dir = dx > 0 ? 'right' : 'left';
 
-	// 3. Planificar caída final
-	actions.push('space');
+        for (var j = 0; j < Math.abs(dx); j++) { actions.push(dir); }
 
-	// 4. Ejecutar secuencia con retardo
-	var k = 0;
-	function playStep() {
-		if (!self.enabled || !self.tetris.humanPuzzle || self.tetris.humanPuzzle.isStopped()) {
-			self.isThinking = false;
-			return;
-		}
+        // 3. Planificar caída final
+        actions.push('space');
 
-	if (k < actions.length) {
-		var action = actions[k++];
+        // 4. Ejecutar secuencia con retardo
+        var k = 0;
+        function playStep() {
+                if (!self.enabled || !actor || actor.isStopped()) {
+                        self.isThinking = false;
+                        return;
+                }
 
-		if (action === 'up') { self.tetris.up(); }
-		else if (action === 'left') { self.tetris.left(); }
-		else if (action === 'right') { self.tetris.right(); }
-		else if (action === 'space') { self.tetris.space(); }
+        if (k < actions.length) {
+                var action = actions[k++];
 
-		setTimeout(playStep, 50);
-	} else {
-	self.isThinking = false;
+                if (action === 'up') { self.tetris.up(actor); }
+                else if (action === 'left') { self.tetris.left(actor); }
+                else if (action === 'right') { self.tetris.right(actor); }
+                else if (action === 'space') { self.tetris.space(actor); }
+
+                setTimeout(playStep, 50);
+        } else {
+        self.isThinking = false;
 }
 }
 playStep();
-			};
+                        };
 
 this.calculateBestMove = function() {
     var bestScore = Infinity;
