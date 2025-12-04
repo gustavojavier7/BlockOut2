@@ -1310,6 +1310,7 @@ function Tetris()
                                                         if (self.mayPlace()) {
                                                                 self.place();
                                                         } else {
+                                                                // Fast fail: cualquier imposibilidad de colocar termina la partida.
                                                                 self.tetris.gameOver();
                                                         }
                                                 }
@@ -1318,7 +1319,8 @@ function Tetris()
                                                 if (self.mayPlace()) {
                                                         self.place();
                                                 } else {
-                                                        self.stop();
+                                                        // El bot comparte la derrota con el humano.
+                                                        self.tetris.gameOver();
                                                 }
                                         }
                                 }
