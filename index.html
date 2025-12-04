@@ -160,7 +160,24 @@
                 if (btnClassic) {
                         btnClassic.onclick = function() {
                                 tetris.setGameMode(false);
+
+                                // UX: cambiar a modo clásico e iniciar la partida en un solo paso
+                                tetris.start();
+
                                 this.blur();
+                        };
+                }
+
+                var coopCheckbox = document.getElementById("tetris-coop-mode");
+                if (coopCheckbox) {
+                        coopCheckbox.onchange = function()
+                        {
+                                tetris.setGameMode(this.checked);
+
+                                // Fast fail: arrancar el juego solo cuando se habilita el modo cooperativo
+                                if (this.checked) {
+                                    tetris.start();
+                                }
                         };
                 }
 
