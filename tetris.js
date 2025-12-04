@@ -1711,6 +1711,28 @@ function TetrisBot(tetrisInstance) {
 
 var self = this;
 
+// --- CONTROL DE MODO AUTOMÁTICO ---
+// El modo automático permite que la IA seleccione el perfil de juego según la ocupación del tablero.
+let autoMode = true;         // IA decide modo dinámico
+let manualModeOverride = false;  // Usuario cambia modo
+
+var autoModeToggle = document.getElementById("auto-mode-toggle");
+if (autoModeToggle) {
+        autoModeToggle.checked = autoMode;
+        autoModeToggle.addEventListener("change", function() {
+                autoMode = this.checked;
+                manualModeOverride = !this.checked;
+
+                if (autoMode) {
+                        console.log("Auto Mode activado. La IA decidirá el modo.");
+                } else {
+                        console.log("Auto Mode desactivado. El usuario controla el modo.");
+                }
+        });
+} else {
+        console.warn("[BOT] Control de Auto Mode no encontrado; se mantiene en automático por defecto.");
+}
+
 // --- UTILIDADES DE MODO ---
 
 this.getModeName = function(mode) {
@@ -1732,6 +1754,38 @@ this.setGameplayMode = function(mode) {
 
         console.info("[BOT] Modo activo:", self.getModeName(mode));
 };
+
+function calculateOccupancy(grid) {
+        if (!grid || !grid.length || !grid[0].length) {
+                console.warn("[BOT] Grid inválido para calcular ocupación; se usará el modo manual.");
+                return 1;
+        }
+
+        var filled = 0;
+        var total = grid.length * grid[0].length;
+
+        for (var r = 0; r < grid.length; r++) {
+                for (var c = 0; c < grid[0].length; c++) {
+                        if (grid[r][c] !== 0) { filled++; }
+                }
+        }
+
+        return filled / total;
+}
+
+function getActiveMode(grid) {
+        if (manualModeOverride || !autoMode) {
+                return self.gameplayMode;
+        }
+
+        var occupancy = calculateOccupancy(grid);
+
+        if (occupancy <= 0.20) return GamePlayMode.PRO_ATTACK;
+        if (occupancy <= 0.40) return GamePlayMode.TETRIS_BUILDER;
+        if (occupancy <= 0.60) return GamePlayMode.BALANCED;
+        if (occupancy <= 0.80) return GamePlayMode.SURVIVAL;
+        return GamePlayMode.ZEN;
+}
 
 // Inicializar indicador en el modo predeterminado
 this.setGameplayMode(this.gameplayMode);
@@ -1901,11 +1955,13 @@ this.calculateBestMove = function() {
 };
 
 this.evaluateGrid = function(grid, linesCleared) {
-    var TOTAL_ROWS = self.tetris.areaY; // 22
-    var TOTAL_COLS = self.tetris.areaX; // 12
-    var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
-    
-    var COMMON_SCALE = 10000;
+    var TOTAL_ROWS = self.tetris.areaY; // 22
+    var TOTAL_COLS = self.tetris.areaX; // 12
+    var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
+
+    var modeToUse = getActiveMode(grid);
+
+    var COMMON_SCALE = 10000;
     
     // --- PEORES CASOS ---
     var WORST_HOLES_COST = 36 * (TOTAL_ROWS * (TOTAL_ROWS + 1) / 2); // 9,108
@@ -1999,7 +2055,7 @@ this.evaluateGrid = function(grid, linesCleared) {
     }
 
     // --- AJUSTE POR MODO DE JUEGO ---
-    var modeProfile = self.modeProfiles[self.gameplayMode] || self.modeProfiles[self.GamePlayMode.BALANCED];
+    var modeProfile = self.modeProfiles[modeToUse] || self.modeProfiles[self.GamePlayMode.BALANCED];
     HOLES_PREFERENCE *= modeProfile.holes;
     ROUGHNESS_PREFERENCE *= modeProfile.roughness;
     CHIMNEY_PREFERENCE *= modeProfile.chimney;
@@ -2075,7 +2131,14 @@ this.evaluateGrid = function(grid, linesCleared) {
     var S_SENSITIVITY = 5000;
     var totalRiskScore = riskLocalBase * (1 + (heuristicCost / S_SENSITIVITY)) - linesReward;
 
-    console.log("[BOT] Score evaluado (" + self.getModeName(self.gameplayMode) + "):", totalRiskScore.toFixed(2));
+    var modeName = Object.keys(GamePlayMode).find(function(key) { return GamePlayMode[key] === modeToUse; }) || self.getModeName(modeToUse);
+
+    var indicator = document.getElementById("mode-indicator");
+    if (indicator) {
+            indicator.innerText = "Modo Bot: " + modeName;
+    }
+
+    console.log("[" + modeName + "] Score: " + totalRiskScore.toFixed(2));
 
     return { score: totalRiskScore, holes: holesCostRaw };
 };
