@@ -1954,12 +1954,13 @@ this.calculateBestMove = function() {
     return finalBestMove ? { rotation: finalBestMove.rotation, x: finalBestMove.x } : null;
 };
 
-this.evaluateGrid = function(grid, linesCleared) {
+this.evaluateGrid = function(grid, linesCleared, skipLookahead) {
     var TOTAL_ROWS = self.tetris.areaY; // 22
     var TOTAL_COLS = self.tetris.areaX; // 12
     var MAX_RISK_CELLS = TOTAL_ROWS * TOTAL_COLS; // 264
 
     var modeToUse = getActiveMode(grid);
+    var occupancyRatio = calculateOccupancy(grid);
 
     var COMMON_SCALE = 10000;
     
@@ -2138,10 +2139,85 @@ this.evaluateGrid = function(grid, linesCleared) {
             indicator.innerText = "Modo Bot: " + modeName;
     }
 
-    console.log("[" + modeName + "] Score: " + totalRiskScore.toFixed(2));
+    // --- LOOKAHEAD DINÁMICO ---
+    var scoreCurrent = totalRiskScore;
+    var scoreFuture = null;
+    var finalScore = scoreCurrent;
 
-    return { score: totalRiskScore, holes: holesCostRaw };
+    var isAutoLookaheadEnabled = !skipLookahead && autoMode && !manualModeOverride;
+    var weightCurrent = 1;
+    var weightFuture = 0;
+
+    if (isAutoLookaheadEnabled) {
+            weightCurrent = occupancyRatio > 0.5 ? 0.70 : 0.40;
+            weightFuture = occupancyRatio > 0.5 ? 0.30 : 0.60;
+    }
+
+    if (isAutoLookaheadEnabled && self.tetris && self.tetris.puzzle && self.tetris.puzzle.puzzles) {
+            var nextType = self.tetris.puzzle.nextType;
+            if (nextType !== null && nextType !== undefined) {
+                    var nextPiece = self.tetris.puzzle.puzzles[nextType];
+
+                    // Simular la mejor colocación posible de la siguiente pieza.
+                    scoreFuture = simulateNextPiece(grid, nextPiece);
+
+                    if (scoreFuture !== null) {
+                            finalScore = (scoreCurrent * weightCurrent) + (scoreFuture * weightFuture);
+                    }
+            }
+    }
+
+    if (scoreFuture !== null) {
+            console.log("[" + modeName + "] Score Actual: " + scoreCurrent.toFixed(2) +
+                        " | Score Futuro: " + scoreFuture.toFixed(2));
+    } else {
+            console.log("[" + modeName + "] Score: " + scoreCurrent.toFixed(2));
+    }
+
+    return { score: finalScore, holes: holesCostRaw };
 };
+
+function simulateNextPiece(baseGrid, nextPiece) {
+        if (!nextPiece || !nextPiece.length || !baseGrid || !baseGrid.length) {
+                // Fast fail: sin pieza futura o tablero inválido, no hay lookahead.
+                return null;
+        }
+
+        var candidateScore = null;
+        var rotatedPiece = nextPiece;
+
+        // Probar las 4 rotaciones posibles.
+        for (var r = 0; r < 4; r++) {
+                if (r > 0) {
+                        rotatedPiece = rotateGrid(rotatedPiece);
+                }
+
+                var pieceWidth = rotatedPiece[0].length;
+                var maxX = self.tetris.areaX - pieceWidth;
+
+                for (var x = 0; x <= maxX; x++) {
+                        // Si no cabe en la fila superior, intentar siguiente posición.
+                        if (!isPositionValid(rotatedPiece, x, 0, baseGrid)) { continue; }
+
+                        var dropY = 0;
+                        while (isPositionValid(rotatedPiece, x, dropY + 1, baseGrid)) {
+                                dropY++;
+                        }
+
+                        var merged = mergePiece(baseGrid, rotatedPiece, x, dropY);
+                        var cleared = clearFullLines(merged);
+                        var evaluation = self.evaluateGrid(cleared.grid, cleared.lines, true);
+
+                        if (!evaluation) { continue; }
+
+                        if (candidateScore === null || evaluation.score < candidateScore) {
+                                candidateScore = evaluation.score;
+                        }
+                }
+        }
+
+        return candidateScore;
+}
 
 // --- SIMULACIÓN FÍSICA ---
 this.simulateDrop = function(rotation, targetX) {
