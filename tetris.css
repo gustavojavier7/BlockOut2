@@ -59,20 +59,30 @@ body, table, input {
         overflow: hidden;
 }
 
-.grid1, .grid2, .grid3, .grid4, .grid5, .grid6 {
+/* LÍNEAS DE CUADRÍCULA VINTAGE */
+/* Las franjas grises alternadas ayudan a visualizar el ancho 20 del modo Co-op */
+.grid1, .grid2, .grid3, .grid4, .grid5, .grid6,
+.grid7, .grid8, .grid9, .grid10 { /* Extendidas para cubrir hasta 20 columnas */
         z-index: 10;
         position: absolute;
         top: 0px;
+        /* El ancho se mantiene igual, pero la posición se calcula en base a la columna */
         width: calc(var(--unit) - 1px);
         height: calc(var(--unit) * var(--area-y) - 1px);
-        background:      #f4efe9;
+        background:      #f4efe9; /* Color de la franja */
 }
 .grid1 { left: var(--unit); }
-.grid2 { left: calc(var(--unit) * 3); }
+.grid2 { left: calc(var(--unit) * 3); } /* Salto de 2 unidades */
 .grid3 { left: calc(var(--unit) * 5); }
 .grid4 { left: calc(var(--unit) * 7); }
 .grid5 { left: calc(var(--unit) * 9); }
 .grid6 { left: calc(var(--unit) * 11); }
+
+/* Añadimos las nuevas franjas para el ancho 20 */
+.grid7 { left: calc(var(--unit) * 13); }
+.grid8 { left: calc(var(--unit) * 15); }
+.grid9 { left: calc(var(--unit) * 17); }
+.grid10 { left: calc(var(--unit) * 19); } /* 10 franjas cubren 20 columnas (columnas impares) */
 
 #tetris .block0,
 #tetris .block1,
