@@ -30,8 +30,9 @@
                                 </div>
                                 <div style="padding-top: 5px; padding-bottom: 5px; padding-left: 15px;">
                                         <input type="checkbox" id="tetris-coop-mode">
-                                        <label for="tetris-coop-mode" id="tetris-menu-ai" style="font-size: 11px;">Modo Co-op Bot</label>
+                                        <label for="tetris-coop-mode" style="font-size: 11px;">Modo Co-op (20x20)</label>
                                 </div>
+                                <div><a href="javascript:void(0)" id="tetris-menu-ai">IA Co-op: OFF</a></div>
                                 <div style="padding-top: 5px; padding-bottom: 5px; padding-left: 15px;">
                                         <input type="checkbox" id="tetris-zen-mode">
                                         <label for="tetris-zen-mode" style="font-size: 11px;">Modo ZEN (1 celda/s)</label>
@@ -152,6 +153,7 @@
                 if (typeof TetrisBot === "function") {
                         bot = new TetrisBot(tetris);
                         window.bot = bot;
+                        tetris.updateBotToggleLabel();
                 } else {
                         console.error("TetrisBot no está definido; el modo IA no se inicializó.");
                 }
@@ -178,6 +180,21 @@
                                 if (this.checked) {
                                     tetris.start();
                                 }
+                        };
+                }
+
+                var aiToggleBtn = document.getElementById("tetris-menu-ai");
+                if (aiToggleBtn) {
+                        aiToggleBtn.onclick = function()
+                        {
+                                if (!window.bot || !window.bot.toggle) {
+                                        console.warn("[BOT] Toggle no disponible; instanciación fallida.");
+                                        return;
+                                }
+
+                                window.bot.toggle();
+                                tetris.updateBotToggleLabel();
+                                this.blur();
                         };
                 }
 

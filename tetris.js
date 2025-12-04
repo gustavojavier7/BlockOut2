@@ -311,6 +311,23 @@ function Tetris()
                 }
 
                 self.updateResponsiveUnit();
+                self.updateBotToggleLabel();
+        };
+
+        /**
+         * Sincroniza el estado visible del botón de IA con el estado interno.
+         * Prioriza el fast fail si el bot no está instanciado.
+         */
+        this.updateBotToggleLabel = function()
+        {
+                var botLabel = document.getElementById("tetris-menu-ai");
+                if (!botLabel) { return; }
+
+                if (!window.bot) { return; }
+
+                var scope = self.isCoopMode ? "Co-op" : "Clásico";
+                var status = window.bot.enabled ? "ON" : "OFF";
+                botLabel.innerHTML = "IA " + scope + ": " + status;
         };
 
 	/**
@@ -331,10 +348,7 @@ function Tetris()
                         window.bot.bestBotMove = null;
                         window.bot.predictedBoard = null;
 
-                        var botLabel = document.getElementById("tetris-menu-ai");
-                        if (botLabel) {
-                                botLabel.innerHTML = shouldEnableBot ? "Salir de Co-op" : "Modo Co-op Bot";
-                        }
+                        self.updateBotToggleLabel();
                 }
 
                 self.stats.start();
@@ -2091,17 +2105,21 @@ this.setGameplayMode(this.gameplayMode);
 
         this.toggle = function() {
                 self.enabled = !self.enabled;
-                var btn = document.getElementById("tetris-menu-ai");
+                if (self.tetris && typeof self.tetris.updateBotToggleLabel === "function") {
+                        self.tetris.updateBotToggleLabel();
+                } else {
+                        var btn = document.getElementById("tetris-menu-ai");
+                        if (btn) { btn.innerHTML = self.enabled ? "IA Co-op: ON" : "IA Co-op: OFF"; }
+                }
 
                 if (self.enabled) {
-                        if (btn) { btn.innerHTML = "Salir de Co-op"; }
                         // Si hay un juego activo, tomar control inmediato
-                        if (self.tetris.humanPuzzle && self.tetris.humanPuzzle.isRunning()) {
+                        if (self.tetris && self.tetris.humanPuzzle && self.tetris.humanPuzzle.isRunning()) {
                                 self.makeMove();
                         }
                 } else {
-                        if (btn) { btn.innerHTML = "Modo Co-op Bot"; }
                         self.isThinking = false; // Detener procesos pendientes
+                        self.bestBotMove = null;
                 }
         };
 
