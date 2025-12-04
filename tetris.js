@@ -129,9 +129,10 @@ function Tetris()
         this.area = null;
         // Dual-state: mantener referencias separadas para la pieza humana y la pieza del bot.
 
-	this.unit  = 20; // unit = x pixels
-	this.areaX = 20; // area width = x units
-	this.areaY = 20; // area height = y units
+        this.unit  = 20; // unit = x pixels
+        this.areaX = 12; // area width = x units (por defecto modo clásico)
+        this.areaY = 22; // area height = y units (por defecto modo clásico)
+        this.isCoopMode = false; // Estado explícito del modo de juego
 
         this.highscores = new Highscores(10);
         this.paused = false;
@@ -263,23 +264,57 @@ function Tetris()
 	 * @return void
 	 * @access public
 	 */
-	this.updateResponsiveUnit = function()
-	{
-		var availableWidth = window.innerWidth * 0.9;
-		var availableHeight = window.innerHeight * 0.9;
-		var unitFromWidth = (availableWidth - 1) / (self.areaX + SIDEBAR_UNITS);
-		var unitFromHeight = (availableHeight - 1) / self.areaY;
-		var calculated = Math.max(10, Math.floor(Math.min(unitFromWidth, unitFromHeight)));
+        this.updateResponsiveUnit = function()
+        {
+                var availableWidth = window.innerWidth * 0.9;
+                var availableHeight = window.innerHeight * 0.9;
+                var unitFromWidth = (availableWidth - 1) / (self.areaX + SIDEBAR_UNITS);
+                var unitFromHeight = (availableHeight - 1) / self.areaY;
+                var calculated = Math.max(10, Math.floor(Math.min(unitFromWidth, unitFromHeight)));
 
 		if (!calculated || calculated == self.unit) {
 			self.updateCssScale();
 			return;
 		}
 
-		self.unit = calculated;
-		self.updateCssScale();
-		self.rescaleBoard();
-	};
+                self.unit = calculated;
+                self.updateCssScale();
+                self.rescaleBoard();
+        };
+
+        /**
+         * Configura el modo de juego y ajusta dimensiones/tablero en consecuencia.
+         * @param {bool} coopEnabled
+         */
+        this.setGameMode = function(coopEnabled)
+        {
+                var requestedCoop = !!coopEnabled;
+
+                // Si hay cambio de modo con una partida activa, restablecer para evitar inconsistencias visuales.
+                if (self.area && (self.isCoopMode !== requestedCoop)) {
+                        self.reset();
+                }
+
+                self.isCoopMode = requestedCoop;
+                self.areaX = self.isCoopMode ? 20 : 12;
+                self.areaY = self.isCoopMode ? 20 : 22;
+
+                // Sincronizar el estado del bot con el modo seleccionado.
+                if (window.bot) {
+                        if (self.isCoopMode && !window.bot.enabled) {
+                                window.bot.toggle();
+                        } else if (!self.isCoopMode && window.bot.enabled) {
+                                window.bot.toggle();
+                        }
+                }
+
+                var indicator = document.getElementById('mode-indicator');
+                if (indicator) {
+                        indicator.innerHTML = self.isCoopMode ? 'Modo Co-op Bot (20x20)' : 'Modo Clásico (12x22)';
+                }
+
+                self.updateResponsiveUnit();
+        };
 
 	/**
 	 * @return void
@@ -295,7 +330,7 @@ function Tetris()
                 document.getElementById("tetris-keys").style.display = "none";
                 self.area = new Area(self.unit, self.areaX, self.areaY, "tetris-area");
                 self.humanPuzzle = new Puzzle(self, self.area, true);
-                self.botPuzzle = new Puzzle(self, self.area, false);
+                self.botPuzzle = self.isCoopMode ? new Puzzle(self, self.area, false) : null;
                 if (self.humanPuzzle.mayPlace()) {
                         self.humanPuzzle.place();
                 } else {
@@ -1960,21 +1995,21 @@ this.setGameplayMode(this.gameplayMode);
 
 // --- CONTROL PÚBLICO ---
 
-this.toggle = function() {
-	self.enabled = !self.enabled;
-	var btn = document.getElementById("tetris-menu-ai");
+        this.toggle = function() {
+                self.enabled = !self.enabled;
+                var btn = document.getElementById("tetris-menu-ai");
 
-	if (self.enabled) {
-		if (btn) { btn.innerHTML = "Jugar Humano"; }
-		// Si hay un juego activo, tomar control inmediato
-		if (self.tetris.humanPuzzle && self.tetris.humanPuzzle.isRunning()) {
-			self.makeMove();
-		}
-} else {
-if (btn) { btn.innerHTML = "Cambiar a IA"; }
-self.isThinking = false; // Detener procesos pendientes
-}
-			};
+                if (self.enabled) {
+                        if (btn) { btn.innerHTML = "Salir de Co-op"; }
+                        // Si hay un juego activo, tomar control inmediato
+                        if (self.tetris.humanPuzzle && self.tetris.humanPuzzle.isRunning()) {
+                                self.makeMove();
+                        }
+                } else {
+                        if (btn) { btn.innerHTML = "Modo Co-op Bot"; }
+                        self.isThinking = false; // Detener procesos pendientes
+                }
+        };
 
 // --- BUCLE DE DECISIÓN (FAST-FAIL) ---
 

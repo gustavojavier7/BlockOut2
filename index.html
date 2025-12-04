@@ -21,18 +21,19 @@
 			<h1><a href="https://github.com/cztomczak/jstetris">Js	Tetris 2.1</a></h1>
                         <div class="menu">
                                 <div><a href="javascript:void(0)" id="tetris-menu-start">New Game</a></div>
+                                <div><a href="javascript:void(0)" id="tetris-menu-classic">Modo Clásico</a></div>
                                 <div id="tetris-pause">
                                         <a href="javascript:void(0)" id="tetris-menu-pause">Pause</a>
                                 </div>
                                 <div style="display: none;" id="tetris-resume">
                                         <a href="javascript:void(0)" id="tetris-menu-resume">Resume</a>
                                 </div>
-                                <div><a href="javascript:void(0)" id="tetris-menu-ai">Cambiar a IA</a></div>
+                                <div><a href="javascript:void(0)" id="tetris-menu-ai">Modo Co-op Bot</a></div>
                                 <div style="padding-top: 5px; padding-bottom: 5px; padding-left: 15px;">
                                         <input type="checkbox" id="tetris-zen-mode">
                                         <label for="tetris-zen-mode" style="font-size: 11px;">Modo ZEN (1 celda/s)</label>
                                 </div>
-                                <div id="mode-indicator">Modo Bot: ZEN</div>
+                                <div id="mode-indicator">Modo Clásico (12x22)</div>
                                 <div class="bot-settings" style="margin-top: 6px;">
                                   <label style="color: #333; font-family: monospace; font-size: 11px;">
                                     <input type="checkbox" id="auto-mode-toggle" checked>
@@ -137,9 +138,7 @@
 	<script	type="text/javascript">
         var tetris = new Tetris();
         tetris.unit = 14;
-        tetris.areaX = 12;
-        tetris.areaY = 22;
-        tetris.updateResponsiveUnit();
+        tetris.setGameMode(false);
 
                 // 1. Inicializar Bot (fallar rápido si no está disponible)
                 var bot = null;
@@ -150,10 +149,18 @@
                         console.error("TetrisBot no está definido; el modo IA no se inicializó.");
                 }
 
+                var btnClassic = document.getElementById("tetris-menu-classic");
+                if (btnClassic) {
+                        btnClassic.onclick = function() {
+                                tetris.setGameMode(false);
+                                this.blur();
+                        };
+                }
+
                 var btnAi = document.getElementById("tetris-menu-ai");
-                if (btnAi && bot) {
+                if (btnAi) {
                         btnAi.onclick = function() {
-                                bot.toggle();
+                                tetris.setGameMode(true);
                                 this.blur();
                         };
                 }
