@@ -1,235 +1,883 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
+<!DOCTYPE html>
+<html lang="es">
 <head>
-	<meta http-equiv="X-UA-Compatible" content="IE=EmulateIE7">
-	<title>JsTetris	- javascript tetris - open source</title>
-	<meta http-equiv="Content-Type"	content="text/html;	charset=utf-8">
-	<link href="tetris.css"	rel="stylesheet" type="text/css">
-	<link href="tetris.ico" rel="shortcut icon">
-	<script	type="text/javascript" src="tetris.js"></script>
-	<style type="text/css">
-	html, body { height: 100%; }
-	#tetris	{ margin: 0	auto; }
-	</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Moderno</title>
+    <link href="tetris.css" rel="stylesheet" type="text/css">
+    <link href="tetris.ico" rel="shortcut icon">
+    <script type="text/javascript" src="tetris.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Header */
+        .header {
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 3.5rem;
+            font-weight: 900;
+            background: linear-gradient(90deg, #06b6d4, #0ea5e9, #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+            letter-spacing: 4px;
+        }
+
+        .header p {
+            color: #94a3b8;
+            font-size: 0.75rem;
+            font-weight: 300;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 32px;
+            margin-bottom: 48px;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Game Area */
+        .game-section {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border-radius: 20px;
+            padding: 2px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid #334155;
+        }
+
+        .game-board {
+            background: #000;
+            border-radius: 16px;
+            aspect-ratio: 16 / 9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #tetris {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #tetris-area {
+            position: relative;
+            background: #000;
+        }
+
+        #tetris-gameover {
+            position: absolute;
+            inset: 0;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: 800;
+            color: #ef4444;
+            text-shadow: 0 5px 20px rgba(239, 68, 68, 0.6);
+            background: rgba(0, 0, 0, 0.65);
+        }
+
+        .game-grid {
+            position: absolute;
+            inset: 0;
+            opacity: 0.1;
+        }
+
+        .grid-line-h {
+            position: absolute;
+            width: 100%;
+            height: 1px;
+            background: #06b6d4;
+        }
+
+        .grid-line-v {
+            position: absolute;
+            height: 100%;
+            width: 1px;
+            background: #06b6d4;
+        }
+
+        .game-message {
+            position: absolute;
+            z-index: 10;
+            text-align: center;
+        }
+
+        .game-message.idle h2 {
+            font-size: 2rem;
+            color: #06b6d4;
+            margin-bottom: 16px;
+            animation: pulse 2s infinite;
+        }
+
+        .game-message.idle p {
+            color: #94a3b8;
+        }
+
+        .game-message.paused h2 {
+            font-size: 3rem;
+            color: #eab308;
+            animation: bounce 0.6s infinite;
+        }
+
+        .game-message.gameover h2 {
+            font-size: 3rem;
+            color: #ef4444;
+            margin-bottom: 16px;
+            animation: pulse 2s infinite;
+        }
+
+        .game-message.gameover p {
+            color: #94a3b8;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+
+        /* Next Piece */
+        .next-piece {
+            margin-top: 24px;
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #334155;
+        }
+
+        .next-piece p {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            letter-spacing: 1px;
+        }
+
+        .next-piece-box {
+            background: #000;
+            border-radius: 8px;
+            width: 120px;
+            height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #334155;
+        }
+
+        /* Right Panel */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .stat-card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            border: 1px solid #334155;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card.highlight {
+            background: linear-gradient(135deg, #a855f7, #ec4899);
+            border: 1px solid #d946ef;
+            box-shadow: 0 10px 30px rgba(217, 70, 239, 0.3);
+            transform: scale(1.05);
+        }
+
+        .stat-card label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: block;
+        }
+
+        .stat-card .value {
+            font-size: 2rem;
+            font-weight: 900;
+            margin-top: 8px;
+            color: #06b6d4;
+        }
+
+        .stat-card.highlight .value {
+            color: #fff;
+        }
+
+        /* Timer */
+        .timer-box {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #334155;
+            text-align: center;
+        }
+
+        .timer-box label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #64748b;
+            text-transform: uppercase;
+            display: block;
+            margin-bottom: 8px;
+            letter-spacing: 1px;
+        }
+
+        .timer-box .value {
+            font-size: 1.5rem;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #06b6d4;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        button {
+            padding: 14px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #06b6d4, #0ea5e9);
+            color: #fff;
+            box-shadow: 0 10px 30px rgba(6, 182, 212, 0.3);
+        }
+
+        .btn-primary:hover {
+            box-shadow: 0 15px 40px rgba(6, 182, 212, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .btn-secondary:hover {
+            background: #475569;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary.active {
+            background: #a855f7;
+            color: #fff;
+            box-shadow: 0 10px 30px rgba(168, 85, 247, 0.3);
+        }
+
+        /* Settings Panel */
+        .settings-panel {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid #334155;
+        }
+
+        .settings-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+
+        .settings-header p {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            padding: 4px;
+            transition: color 0.3s;
+        }
+
+        .toggle-btn:hover {
+            color: #06b6d4;
+        }
+
+        /* Mode Switches */
+        .mode-switches {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .switch-group {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .switch-group label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #cbd5e1;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 48px;
+            height: 28px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #334155;
+            transition: 0.3s;
+            border-radius: 14px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        .switch input:checked + .slider {
+            background: #06b6d4;
+        }
+
+        .switch input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Bot Settings */
+        .bot-settings {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #a855f7;
+            border-opacity: 0.5;
+        }
+
+        .bot-settings-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            color: #d946ef;
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .bot-settings select {
+            width: 100%;
+            background: #334155;
+            color: #fff;
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid #475569;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        .bot-settings select:focus {
+            outline: none;
+            border-color: #a855f7;
+        }
+
+        .bot-settings select option {
+            background: #1e293b;
+            color: #fff;
+        }
+
+        /* Keyboard Guide */
+        .keyboard-guide {
+            margin-top: 48px;
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #334155;
+        }
+
+        .keyboard-guide p {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #cbd5e1;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+        }
+
+        .keys-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 16px;
+        }
+
+        .key-item {
+            text-align: center;
+        }
+
+        .key {
+            background: linear-gradient(135deg, #06b6d4, #0ea5e9);
+            color: #fff;
+            font-weight: 700;
+            padding: 12px 16px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-bottom: 8px;
+            min-width: 70px;
+        }
+
+        .key-action {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 32px;
+            text-align: center;
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        /* Utility Classes */
+        .hidden {
+            display: none !important;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>TETRIS</h1>
+            <p>Experience the Classic</p>
+        </div>
 
-<table style="width: 100%; height: 100%;" cellspacing="0" cellpadding="0"><tr><td style="vertical-align: middle;">
-
-	<div id="tetris">
-		<div class="left">
-			<h1><a href="https://github.com/cztomczak/jstetris">Js	Tetris 2.1</a></h1>
-                        <div class="menu">
-                                <div><a href="javascript:void(0)" id="tetris-menu-start">New Game</a></div>
-                                <div><a href="javascript:void(0)" id="tetris-menu-classic">Modo Clásico</a></div>
-                                <div id="tetris-pause">
-                                        <a href="javascript:void(0)" id="tetris-menu-pause">Pause</a>
-                                </div>
-                                <div style="display: none;" id="tetris-resume">
-                                        <a href="javascript:void(0)" id="tetris-menu-resume">Resume</a>
-                                </div>
-                                <div style="padding-top: 5px; padding-bottom: 5px; padding-left: 15px;">
-                                        <input type="checkbox" id="tetris-coop-mode">
-                                        <label for="tetris-coop-mode" style="font-size: 11px;">Modo Co-op (20x20)</label>
-                                </div>
-                                <div><a href="javascript:void(0)" id="tetris-menu-ai">IA Co-op: OFF</a></div>
-                                <div style="padding-top: 5px; padding-bottom: 5px; padding-left: 15px;">
-                                        <input type="checkbox" id="tetris-zen-mode">
-                                        <label for="tetris-zen-mode" style="font-size: 11px;">Modo ZEN (1 celda/s)</label>
-                                </div>
-                                <div id="mode-indicator">Modo Clásico (12x22)</div>
-                                <div class="bot-settings" style="margin-top: 6px;">
-                                  <label style="color: #333; font-family: monospace; font-size: 11px;">
-                                    <input type="checkbox" id="auto-mode-toggle" checked>
-                                    Auto Mode IA
-                                  </label>
-                                </div>
-                                <div><a href="javascript:void(0)" id="tetris-menu-highscores">Highscores</a></div>
-                                <div><a href="javascript:void(0)" id="tetris-menu-help">About</a></div>
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Left - Game Area -->
+            <div>
+                <div class="game-section">
+                    <div class="game-board">
+                        <div class="game-grid" id="gameGrid"></div>
+                        <div class="game-message idle" id="gameMessage">
+                            <h2>PRESS START</h2>
+                            <p>Ready to play?</p>
                         </div>
-			<div id="tetris-nextpuzzle"></div>
-			<div id="tetris-gameover">Game Over</div>
-			<div id="tetris-keys">
-				<div class="h5">Keyboard:</div>
-				<table cellspacing="0" cellpadding="0">
-				<tr>
-					<td>Rotate:</td>
-					<td></td>
-					<td><img src="key-up.gif" width="14" height="14" alt=""></td>
-					<td></td>
-				</tr>
-				<tr>
-					<td>Move:</td>
-					<td><img src="key-left.gif" width="14" height="14" alt=""></td>
-					<td><img src="key-down.gif" width="14" height="14" alt=""></td>
-					<td><img src="key-right.gif" width="14" height="14" alt=""></td>
-				</tr>
-				<tr>
-					<td>Fall:</td>
-					<td colspan="3">
-						<img src="key-space.gif" width="44" height="13" alt="">
-					</td>
-				</tr>
-				</table>
-			</div>
-			<div class="stats">
-				<div class="h5">Statistics:</div>
-				<table cellspacing="0" cellpadding="0">
-				<tr>
-					<td	class="level">Level:</td>
-					<td><span id="tetris-stats-level">1</span></td>
-				</tr>
-				<tr>
-					<td	class="score">Score:</td>
-					<td><span id="tetris-stats-score">0</span></td>
-				</tr>
-				<tr>
-					<td	class="lines">Lines:</td>
-					<td><span id="tetris-stats-lines">0</span></td>
-				</tr>
-				<tr>
-					<td	class="apm">APM:</td>
-					<td><span id="tetris-stats-apm">0</span></td>
-				</tr>
-				<tr>
-					<td	class="time">Time:</td>
-					<td><span id="tetris-stats-time">0</span></td>
-				</tr>
-
-				</table>
-			</div>
-		</div>
-		<div class="left-border"></div>
-		<div id="tetris-area">
-                        <div class="grid1"></div>
-                        <div class="grid2"></div>
-                        <div class="grid3"></div>
-                        <div class="grid4"></div>
-                        <div class="grid5"></div>
-                        <div class="grid6"></div>
-                        <div class="grid7"></div>
-                        <div class="grid8"></div>
-                        <div class="grid9"></div>
-                        <div class="grid10"></div>
+                        <div id="tetris">
+                            <div id="tetris-area"></div>
+                            <div id="tetris-gameover">Game Over</div>
+                            <div id="tetris-keys" style="display: none;">Controles activos</div>
+                        </div>
+                    </div>
                 </div>
-		<div id="tetris-help" class="window">
-			<div class="top">
-				About <span id="tetris-help-close" class="close">x</span>
-			</div>
-			<div class="content" style="margin-top:	1em;">
-				<div style="margin-top:	1em;">
-				<div>JsTetris is a highly customizable tetris game written in javascript,
-				full sources available, it is free to modify.
-				</div>
-				<br>
-				<div>Author: Czarek Tomczak</div>
-				<div>Site: <a href="https://github.com/cztomczak/jstetris">github.com/cztomczak/jstetris</a></div>
-				<br>
-				<div>License: BSD revised (free for any use)</div>
-				</div>
-			</div>
-		</div>
-		<div id="tetris-highscores"	class="window">
-			<div class="top">
-				Highscores <span id="tetris-highscores-close" class="close">x</span>
-			</div>
-			<div class="content">
-				<div id="tetris-highscores-content"></div>
-				<br>
-				Note: these	scores are kept	in cookies,	they are only visible to your computer.
-			</div>
-		</div>
-	</div>
 
-</td></tr></table>
+                <!-- Next Piece -->
+                <div class="next-piece">
+                    <p>Next Piece</p>
+                    <div class="next-piece-box" id="tetris-nextpuzzle"></div>
+                </div>
+            </div>
 
-	<script	type="text/javascript">
-        var tetris = new Tetris();
-        tetris.unit = 14;
+            <!-- Right - Panel -->
+            <div class="right-panel">
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card highlight">
+                        <label>Score</label>
+                        <div class="value" id="tetris-stats-score">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>Level</label>
+                        <div class="value" id="tetris-stats-level">1</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>Lines</label>
+                        <div class="value" id="tetris-stats-lines">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>APM</label>
+                        <div class="value" id="tetris-stats-apm">0</div>
+                    </div>
+                </div>
+
+                <!-- Timer -->
+                <div class="timer-box">
+                    <label>Time</label>
+                    <div class="value" id="tetris-stats-time">0</div>
+                </div>
+
+                <!-- Controls -->
+                <div class="controls">
+                    <button class="btn-primary" id="tetris-menu-start">▶ Play</button>
+                    <div id="tetris-pause">
+                        <button class="btn-secondary" id="tetris-menu-pause">⏸ Pause</button>
+                    </div>
+                    <div id="tetris-resume" style="display: none;">
+                        <button class="btn-secondary" id="tetris-menu-resume">▶ Resume</button>
+                    </div>
+                    <button class="btn-secondary" id="tetris-menu-highscores">🏆 Highscores</button>
+                    <button class="btn-secondary" id="tetris-menu-help">ℹ️ About</button>
+                </div>
+
+                <!-- Settings -->
+                <div class="settings-panel">
+                    <div class="settings-header">
+                        <p>Game Modes</p>
+                        <div id="mode-indicator">Modo Clásico (12x22)</div>
+                    </div>
+
+                    <div class="mode-switches" id="modeList">
+                        <div class="switch-group">
+                            <label for="tetris-coop-mode">Co-op Mode</label>
+                            <label class="switch">
+                                <input type="checkbox" id="tetris-coop-mode">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="switch-group">
+                            <label for="tetris-zen-mode">Zen Mode</label>
+                            <label class="switch">
+                                <input type="checkbox" id="tetris-zen-mode">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bot Settings -->
+                <div class="bot-settings hidden" id="botSettings">
+                    <div class="bot-settings-header">
+                        ⚡ Bot Strategy
+                    </div>
+                    <select id="botMode" onchange="if(window.bot){ window.bot.setGameplayMode(window.bot.GamePlayMode[this.value]); }">
+                        <option value="SURVIVAL">SURVIVAL</option>
+                        <option value="TETRIS_BUILDER">TETRIS_BUILDER</option>
+                        <option value="PRO_ATTACK">PRO_ATTACK</option>
+                        <option value="ZEN">ZEN</option>
+                        <option value="BALANCED" selected>BALANCED</option>
+                    </select>
+                    <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+                        <label for="auto-mode-toggle" style="color:#cbd5e1; font-weight:600; font-size:0.85rem;">Auto Mode IA</label>
+                        <label class="switch" style="margin-left:auto;">
+                            <input type="checkbox" id="auto-mode-toggle" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <button class="btn-secondary" id="tetris-menu-ai" style="margin-top:12px; width:100%;">IA Co-op: OFF</button>
+                </div>
+
+                <!-- Audio Control -->
+                <button class="btn-secondary" id="audioBtn">🔊 Sound On</button>
+            </div>
+        </div>
+
+        <!-- Keyboard Guide -->
+        <div class="keyboard-guide">
+            <p>Controls</p>
+            <div class="keys-grid">
+                <div class="key-item">
+                    <div class="key">↑</div>
+                    <div class="key-action">Rotate</div>
+                </div>
+                <div class="key-item">
+                    <div class="key">← →</div>
+                    <div class="key-action">Move</div>
+                </div>
+                <div class="key-item">
+                    <div class="key">↓</div>
+                    <div class="key-action">Down</div>
+                </div>
+                <div class="key-item">
+                    <div class="key">Space</div>
+                    <div class="key-action">Drop</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>Modern Tetris • Built with Vanilla HTML/CSS/JS • Featuring AI Co-op Mode</p>
+        </div>
+    </div>
+
+    <div id="tetris-help" class="window" style="display: none;">
+        <div class="top">
+            About <span id="tetris-help-close" class="close">x</span>
+        </div>
+        <div class="content" style="margin-top: 1em;">
+            <div style="margin-top: 1em;">
+                <div>JsTetris es un juego tetris altamente personalizable escrito en JavaScript.</div>
+                <br>
+                <div>Author: Czarek Tomczak</div>
+                <div>Site: <a href="https://github.com/cztomczak/jstetris">github.com/cztomczak/jstetris</a></div>
+                <br>
+                <div>License: BSD revised (free for any use)</div>
+            </div>
+        </div>
+    </div>
+    <div id="tetris-highscores" class="window" style="display: none;">
+        <div class="top">
+            Highscores <span id="tetris-highscores-close" class="close">x</span>
+        </div>
+        <div class="content">
+            <div id="tetris-highscores-content"></div>
+            <br>
+            <span>Note: these scores are kept in cookies.</span>
+        </div>
+    </div>
+
+    <script>
+        let gameState = 'idle';
+        let isMuted = false;
+
+        // Generar grid de fondo
+        function generateGameGrid() {
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+
+            for (let i = 0; i < 20; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line-h';
+                line.style.top = `${(i + 1) * 5}%`;
+                grid.appendChild(line);
+            }
+
+            for (let i = 0; i < 12; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line-v';
+                line.style.left = `${(i + 1) * 8.33}%`;
+                grid.appendChild(line);
+            }
+        }
+
+        function updateGameMessage(state) {
+            const message = document.getElementById('gameMessage');
+            message.className = 'game-message ' + state;
+
+            switch(state) {
+                case 'idle':
+                    message.innerHTML = '<h2>PRESS START</h2><p>Ready to play?</p>';
+                    break;
+                case 'playing':
+                    message.innerHTML = '';
+                    break;
+                case 'paused':
+                    message.innerHTML = '<h2>PAUSED</h2>';
+                    break;
+                case 'gameover':
+                    message.innerHTML = '<h2>GAME OVER</h2>';
+                    break;
+            }
+        }
+
+        function toggleAudio() {
+            isMuted = !isMuted;
+            document.getElementById('audioBtn').textContent = isMuted ? '🔇 Sound Off' : '🔊 Sound On';
+        }
+
+        // Inicializar Tetris y bot respetando el principio de fast fail
+        const tetris = new Tetris();
+        tetris.unit = 18;
         tetris.setGameMode(false);
 
-                // 1. Inicializar Bot (fallar rápido si no está disponible)
-                var bot = null;
-                if (typeof TetrisBot === "function") {
-                        bot = new TetrisBot(tetris);
-                        window.bot = bot;
-                        tetris.updateBotToggleLabel();
-                } else {
-                        console.error("TetrisBot no está definido; el modo IA no se inicializó.");
-                }
+        let bot = null;
+        if (typeof TetrisBot === 'function') {
+            bot = new TetrisBot(tetris);
+            window.bot = bot;
+            tetris.updateBotToggleLabel();
+        } else {
+            console.error('TetrisBot no está definido; el modo IA no se inicializó.');
+        }
 
-                var btnClassic = document.getElementById("tetris-menu-classic");
-                if (btnClassic) {
-                        btnClassic.onclick = function() {
-                                tetris.setGameMode(false);
+        // Sincronizar botones y toggles con el motor existente
+        (function bindUiControls() {
+            const coopCheckbox = document.getElementById('tetris-coop-mode');
+            const zenCheckbox = document.getElementById('tetris-zen-mode');
+            const botToggleBtn = document.getElementById('tetris-menu-ai');
+            const playBtn = document.getElementById('tetris-menu-start');
+            const pauseBtn = document.getElementById('tetris-menu-pause');
+            const resumeBtn = document.getElementById('tetris-menu-resume');
+            const audioBtn = document.getElementById('audioBtn');
 
-                                // UX: cambiar a modo clásico e iniciar la partida en un solo paso
-                                tetris.start();
-
-                                this.blur();
-                        };
-                }
-
-                var coopCheckbox = document.getElementById("tetris-coop-mode");
-                if (coopCheckbox) {
-                        coopCheckbox.onchange = function()
-                        {
-                                tetris.setGameMode(this.checked);
-
-                                // Fast fail: arrancar el juego solo cuando se habilita el modo cooperativo
-                                if (this.checked) {
-                                    tetris.start();
-                                }
-                        };
-                }
-
-                var aiToggleBtn = document.getElementById("tetris-menu-ai");
-                if (aiToggleBtn) {
-                        aiToggleBtn.onclick = function()
-                        {
-                                if (!window.bot || !window.bot.toggle) {
-                                        console.warn("[BOT] Toggle no disponible; instanciación fallida.");
-                                        return;
-                                }
-
-                                window.bot.toggle();
-                                tetris.updateBotToggleLabel();
-                                this.blur();
-                        };
-                }
-
-                // 2. Selector de modo de juego vía teclado (fallar rápido si no hay bot)
-                document.addEventListener("keydown", function(event) {
-                        if (!bot || !bot.setGameplayMode) { return; }
-
-                        // Mapear únicamente los modos heurísticos (modo BALANCED y ZEN quedan fuera del selector rápido)
-                        var modeMap = {
-                                "1": bot.GamePlayMode.SURVIVAL,
-                                "2": bot.GamePlayMode.TETRIS_BUILDER,
-                                "3": bot.GamePlayMode.PRO_ATTACK
-                        };
-
-                        var requestedMode = modeMap[event.key];
-                        if (requestedMode) {
-                                bot.setGameplayMode(requestedMode);
-                        }
+            if (coopCheckbox) {
+                coopCheckbox.addEventListener('change', function() {
+                    if (this.checked) {
+                        document.getElementById('botSettings').classList.remove('hidden');
+                    } else {
+                        document.getElementById('botSettings').classList.add('hidden');
+                    }
                 });
+            }
 
-        </script>
+            if (botToggleBtn) {
+                botToggleBtn.addEventListener('click', function() {
+                    if (!window.bot || !window.bot.toggle) {
+                        console.warn('[BOT] Toggle no disponible; instanciación fallida.');
+                        return;
+                    }
+                    window.bot.toggle();
+                    tetris.updateBotToggleLabel();
+                });
+            }
 
+            if (playBtn) {
+                playBtn.addEventListener('click', function() {
+                    tetris.start();
+                    gameState = 'playing';
+                    updateGameMessage(gameState);
+                });
+            }
+
+            if (pauseBtn) {
+                pauseBtn.addEventListener('click', function() {
+                    tetris.pause();
+                    gameState = 'paused';
+                    updateGameMessage(gameState);
+                });
+            }
+
+            if (resumeBtn) {
+                resumeBtn.addEventListener('click', function() {
+                    tetris.pause();
+                    gameState = 'playing';
+                    updateGameMessage(gameState);
+                });
+            }
+
+            if (audioBtn) {
+                audioBtn.addEventListener('click', toggleAudio);
+            }
+        })();
+
+        // Selector rápido de modo del bot vía teclado
+        document.addEventListener('keydown', function(event) {
+            if (!bot || !bot.setGameplayMode) { return; }
+            const modeMap = {
+                '1': bot.GamePlayMode.SURVIVAL,
+                '2': bot.GamePlayMode.TETRIS_BUILDER,
+                '3': bot.GamePlayMode.PRO_ATTACK
+            };
+            const requestedMode = modeMap[event.key];
+            if (requestedMode) {
+                bot.setGameplayMode(requestedMode);
+                document.getElementById('botMode').value = bot.getModeName(requestedMode);
+            }
+        });
+
+        // Mostrar mensaje de fin de juego cuando el engine actualice el DOM
+        const gameOverObserver = new MutationObserver(() => {
+            const gameOverVisible = document.getElementById('tetris-gameover').style.display === 'block';
+            if (gameOverVisible) {
+                gameState = 'gameover';
+                updateGameMessage('gameover');
+            }
+        });
+        gameOverObserver.observe(document.getElementById('tetris-gameover'), { attributes: true, attributeFilter: ['style'] });
+
+        generateGameGrid();
+        updateGameMessage(gameState);
+
+    </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
