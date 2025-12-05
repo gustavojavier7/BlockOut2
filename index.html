@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Moderno</title>
+    <!-- Use our updated CSS -->
+    <link href="tetris.css" rel="stylesheet" type="text/css">
+    <link href="tetris.ico" rel="shortcut icon">
+    <!-- Load the game engine -->
+    <script type="text/javascript" src="tetris.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="main-grid">
+            <!-- Left - Control Panel -->
+            <div class="control-panel">
+                <div class="header">
+                    <h1>TETRIS</h1>
+                    <p>Experience the Classic</p>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid">
+                    <div class="stat-card highlight">
+                        <label>Score</label>
+                        <div class="value" id="tetris-stats-score">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>Level</label>
+                        <div class="value" id="tetris-stats-level">1</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>Lines</label>
+                        <div class="value" id="tetris-stats-lines">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>APM</label>
+                        <div class="value" id="tetris-stats-apm">0</div>
+                    </div>
+                </div>
+
+                <!-- Timer -->
+                <div class="timer-box">
+                    <label>Time</label>
+                    <div class="value" id="tetris-stats-time">0:00</div>
+                </div>
+
+                <!-- Next Piece -->
+                <div class="next-piece side-panel">
+                    <p>Next Piece</p>
+                    <div class="next-piece-box" id="tetris-nextpuzzle"></div>
+                </div>
+
+                <!-- Controls -->
+                <div class="controls">
+                    <button class="btn-primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+                    <button class="btn-secondary" onclick="restartGame()">↻ New Game</button>
+                </div>
+
+                <!-- Settings -->
+                <div class="settings-panel">
+                    <div class="settings-header">
+                        <p>Game Modes</p>
+                        <button class="toggle-btn" onclick="toggleSettingsDetail()" title="Settings">⚙️</button>
+                    </div>
+
+                    <div class="mode-switches" id="modeList">
+                        <div class="switch-group">
+                            <label for="coopToggle">Co-op Mode</label>
+                            <div class="switch" id="coopToggle" onclick="toggleSwitch(this)"></div>
+                        </div>
+                        <div class="switch-group hidden" id="botGroup">
+                            <label for="botToggle">Enable Bot</label>
+                            <div class="switch active" id="botToggle" onclick="toggleSwitch(this)"></div>
+                        </div>
+                        <div class="switch-group">
+                            <label for="zenToggle">Zen Mode</label>
+                            <div class="switch" id="zenToggle" onclick="toggleSwitch(this)"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bot Settings -->
+                <div class="bot-settings hidden" id="botSettings">
+                    <div class="bot-settings-header">
+                        ⚡ Bot Strategy
+                    </div>
+                    <!-- Glue code: Update global bot object if it exists -->
+                    <select id="botMode"
+                        onchange="if(window.bot && window.bot.setGameplayMode) window.bot.setGameplayMode(window.bot.GamePlayMode[this.value])">
+                        <option value="SURVIVAL">SURVIVAL</option>
+                        <option value="TETRIS_BUILDER">TETRIS_BUILDER</option>
+                        <option value="PRO_ATTACK">PRO_ATTACK</option>
+                        <option value="ZEN">ZEN</option>
+                        <option value="BALANCED" selected>BALANCED</option>
+                    </select>
+                </div>
+
+                <!-- Audio Control -->
+                <button class="btn-secondary" onclick="toggleAudio()" id="audioBtn">🔊 Sound On</button>
+            </div>
+
+            <!-- Right - Game Area -->
+            <div>
+                <div class="game-section">
+                    <div class="game-board">
+                        <div class="game-grid" id="gameGrid"></div>
+
+                        <!-- GAME ENGINE AREA -->
+                        <div id="tetris-area"></div>
+
+                        <!-- Game Over / Messages Overlay -->
+                        <div class="game-message idle" id="gameMessage">
+                            <h2>PRESS START</h2>
+                            <p>Ready to play?</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legacy Hidden Elements required by JS hooks -->
+        <div style="display: none;">
+            <div id="tetris-help"></div>
+            <div id="tetris-highscores">
+                <div id="tetris-highscores-content"></div>
+                <span id="tetris-highscores-close"></span>
+            </div>
+            <span id="tetris-help-close"></span>
+
+            <button id="tetris-menu-start"></button>
+            <div id="tetris-pause"><button id="tetris-menu-pause"></button></div>
+            <div id="tetris-resume"><button id="tetris-menu-resume"></button></div>
+            <button id="tetris-menu-help"></button>
+            <button id="tetris-menu-highscores"></button>
+
+            <!-- Optional but good to have to match optional JS checks -->
+            <input type="checkbox" id="tetris-coop-mode">
+            <input type="checkbox" id="tetris-zen-mode">
+
+            <!-- Missing element causing crash at line 400 -->
+            <div id="tetris-keys"></div>
+        </div>
+
+        <!-- Legacy Game Over (Hidden, we use overlay) -->
+        <div id="tetris-gameover" style="display:none;"></div>
+    </div>
+
+    <script>
+        // --- GLUE CODE: BRIDGE MODERN UI TO VINTAGE ENGINE ---
+
+        let zoomRatio = 1; // escala de zoom manual
+        // Configuración inicial de estado
+        let gameState = 'idle'; // idle, playing, paused, gameover
+        let isMuted = false;
+        let isCoopMode = false;
+        let isBotEnabled = true;
+        let isZenMode = false;
+
+        // 1. Inicializar el motor de Tetris
+        // Declaramos 'tetris' globalmente como lo espera el script original (o uso común)
+        var tetris = new Tetris();
+        tetris.unit = 24; // Ajustar tamaño base
+        tetris.areaX = 12;
+        tetris.areaY = 22;
+
+        // 2. Inicializar Bot si existe la clase
+        if (typeof TetrisBot === 'function') {
+            window.bot = new TetrisBot(tetris);
+            // Default configuration
+            window.bot.enabled = true;
+        }
+
+        // 3. Generar Grid Visual (Decorativo)
+        function generateGameGrid() {
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            // 20 líneas horizontales
+            for (let i = 0; i < 20; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line-h';
+                line.style.top = `${(i + 1) * 5}%`;
+                grid.appendChild(line);
+            }
+            // 12 líneas verticales
+            for (let i = 0; i < 12; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line-v';
+                line.style.left = `${(i + 1) * 8.33}%`;
+                grid.appendChild(line);
+            }
+        }
+
+        // 4. Sistema de Mensajes
+        function updateGameMessage(state) {
+            const message = document.getElementById('gameMessage');
+            message.className = 'game-message ' + state;
+            message.style.display = 'block';
+
+            switch (state) {
+                case 'idle':
+                    message.innerHTML = '<h2>PRESS START</h2><p>Ready to play?</p>';
+                    break;
+                case 'playing':
+                    message.style.display = 'none'; // Ocultar mientras se juega
+                    break;
+                case 'paused':
+                    message.innerHTML = '<h2>PAUSED</h2>';
+                    break;
+                case 'gameover':
+                    // Obtener score final del motor
+                    let finalScore = tetris.stats.getScore();
+                    message.innerHTML = `<h2>GAME OVER</h2><p>Final Score: ${finalScore}</p>`;
+                    break;
+            }
+        }
+
+        // 5. Controles del Juego Mapeados al Motor
+        function togglePlay() {
+            const btn = document.getElementById('playBtn');
+
+            if (gameState === 'idle' || gameState === 'gameover') {
+                // Iniciar nuevo juego
+                gameState = 'playing';
+                btn.textContent = '⏸ Pause';
+                tetris.start();
+                updateGameMessage('playing');
+            } else if (gameState === 'playing') {
+                // Pausar
+                gameState = 'paused';
+                btn.textContent = '▶ Resume';
+                tetris.pause();
+                updateGameMessage('paused');
+            } else if (gameState === 'paused') {
+                // Resumir
+                gameState = 'playing';
+                btn.textContent = '⏸ Pause';
+                tetris.pause(); // tetris.pause() alterna el estado
+                updateGameMessage('playing');
+            }
+        }
+
+        function restartGame() {
+            if (confirm("Start new game?")) {
+                gameState = 'playing';
+                document.getElementById('playBtn').textContent = '⏸ Pause';
+                tetris.start(); // tetris.start() reinicia si ya corre
+                updateGameMessage('playing');
+            }
+        }
+
+        // Monkey-patch de tetris.gameOver para actualizar nuestra UI
+        const originalGameOver = tetris.gameOver;
+        tetris.gameOver = function () {
+            originalGameOver.apply(tetris);
+            gameState = 'gameover';
+            document.getElementById('playBtn').textContent = '▶ Play';
+            updateGameMessage('gameover');
+        };
+
+        // 6. Switches y Toggles
+        function toggleSwitch(element) {
+            element.classList.toggle('active');
+            let isActive = element.classList.contains('active');
+
+            if (element.id === 'coopToggle') {
+                isCoopMode = isActive;
+                document.getElementById('botGroup').classList.toggle('hidden', !isCoopMode);
+
+                // Actualizar motor
+                tetris.setGameMode(isCoopMode);
+
+                // Si desactivamos coop, desactivar bot UI también
+                if (!isCoopMode) {
+                    // Nota: No forzamos el switch visual del bot a off si queremos que recuerde, 
+                    // pero el motor espera que coop implique bot puzzle.
+                }
+            } else if (element.id === 'botToggle') {
+                isBotEnabled = isActive;
+                document.getElementById('botSettings').classList.toggle('hidden', !isBotEnabled);
+                if (window.bot) window.bot.enabled = isBotEnabled;
+            } else if (element.id === 'zenToggle') {
+                isZenMode = isActive;
+                // Actualizar propiedad zenMode en tetris
+                tetris.zenMode = isZenMode;
+                // Forzar actualización de velocidad si está corriendo
+                if (tetris.humanPuzzle && tetris.humanPuzzle.isRunning()) {
+                    // Hack para disparar la lógica de zen mode interna si existe, o implementarla aqui
+                    if (tetris.humanPuzzle.fallDownID) {
+                        // Reiniciar timer con nueva velocidad (manejado por tetris.js si tiene soporte zen)
+                        // Si tetris.js no tiene soporte nativo zen completo en setGameMode, 
+                        // dependemos de la implementación existente.
+                    }
+                }
+                // Si el motor tiene un checkbox original, sincronizarlo:
+                let zenCheck = document.getElementById("tetris-zen-mode");
+                if (zenCheck) { zenCheck.checked = isZenMode; zenCheck.onchange(); }
+            }
+        }
+
+        function toggleSettingsDetail() {
+            document.getElementById('modeList').classList.toggle('hidden');
+        }
+
+        function toggleAudio() {
+            isMuted = !isMuted;
+            document.getElementById('audioBtn').textContent = isMuted ? '🔇 Sound Off' : '🔊 Sound On';
+            // Implementar lógica de audio real si existe
+        }
+
+        function changeBotMode(mode) {
+            if (window.bot && window.bot.setGameplayMode) {
+                window.bot.setGameplayMode(window.bot.GamePlayMode[mode]);
+            }
+        }
+
+        // Inicializar
+        window.addEventListener('load', () => {
+            generateGameGrid();
+
+            // Forzar actualización de escala inicial
+            tetris.updateResponsiveUnit();
+
+            // Asegurar que el bot settings esté oculto/mostrado según defaults
+            if (!isCoopMode) document.getElementById('botGroup').classList.add('hidden');
+            document.getElementById('botSettings').classList.toggle('hidden', !isBotEnabled);
+        });
+
+        // Loop de estado para mantener sincronía si es necesarios
+        // tetris.js actualiza el DOM directamente, así que no necesitamos pollear stats.
+
+        /* -------------------------------------------------------------
+           SCALING LOGIC: Fit game to screen
+           ------------------------------------------------------------- */
+
+        /* -------------------------------------------------------------
+           SCALING LOGIC: Fit BOARD to container only
+           ------------------------------------------------------------- */
+        function fitBoard() {
+            const boardContainer = document.querySelector('.game-board');
+            const tetrisArea = document.getElementById('tetris-area');
+
+            if (!boardContainer || !tetrisArea) return;
+
+            // Reset to get natural size
+            tetrisArea.style.transform = 'none';
+
+            // Get dimensions
+            const availWidth = boardContainer.clientWidth;
+            const availHeight = boardContainer.clientHeight;
+
+            const boardWidth = tetrisArea.offsetWidth;
+            const boardHeight = tetrisArea.offsetHeight;
+
+            // Add margin buffer
+            const padding = 20;
+
+            // Calculate scale
+            const scaleX = (availWidth - padding) / boardWidth;
+            const scaleY = (availHeight - padding) / boardHeight;
+
+            // Only scale DOWN, never UP (to avoid blurry big blocks)
+            // Or allow up if user wants big screen experience? User asked "not to overflow", implying shrink.
+            // Let's allow minor upsizing but prioritize fitting.
+            let scale = Math.min(scaleX, scaleY);
+
+            // Apply
+            if (scale < 1) {
+                tetrisArea.style.transform = `scale(${scale})`;
+            } else {
+                // Optional: Limit max scale to 1.0 or 1.2
+                tetrisArea.style.transform = `scale(1)`;
+            }
+        }
+
+        window.addEventListener('resize', fitBoard);
+        // Call after load and after engine init
+        window.addEventListener('load', () => {
+            // Wait a tick for styles to settle
+            setTimeout(fitBoard, 100);
+            // Also recurring check in case level change affects something (unlikely with canvas but div blocks yes if area changes)
+            setInterval(fitBoard, 2000);
+        });
+    </script>
+</body>
+
+</html>
