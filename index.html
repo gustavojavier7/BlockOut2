@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tetris Moderno</title>
-    <link href="tetris.css" rel="stylesheet" type="text/css">
-    <link href="tetris.ico" rel="shortcut icon">
-    <script type="text/javascript" src="tetris.js"></script>
     <style>
         * {
             margin: 0;
@@ -33,7 +30,7 @@
         }
 
         .header h1 {
-            font-size: 3.5rem;
+            font-size: 5rem;
             font-weight: 900;
             background: linear-gradient(90deg, #06b6d4, #0ea5e9, #a855f7);
             -webkit-background-clip: text;
@@ -45,7 +42,7 @@
 
         .header p {
             color: #94a3b8;
-            font-size: 0.75rem;
+            font-size: 1rem;
             font-weight: 300;
             letter-spacing: 3px;
             text-transform: uppercase;
@@ -85,33 +82,6 @@
             overflow: hidden;
         }
 
-        #tetris {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #tetris-area {
-            position: relative;
-            background: #000;
-        }
-
-        #tetris-gameover {
-            position: absolute;
-            inset: 0;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            font-size: 2rem;
-            font-weight: 800;
-            color: #ef4444;
-            text-shadow: 0 5px 20px rgba(239, 68, 68, 0.6);
-            background: rgba(0, 0, 0, 0.65);
-        }
-
         .game-grid {
             position: absolute;
             inset: 0;
@@ -133,7 +103,7 @@
         }
 
         .game-message {
-            position: absolute;
+            position: relative;
             z-index: 10;
             text-align: center;
         }
@@ -197,12 +167,21 @@
         .next-piece-box {
             background: #000;
             border-radius: 8px;
-            width: 120px;
-            height: 120px;
+            width: 80px;
+            height: 80px;
             display: flex;
             align-items: center;
             justify-content: center;
             border: 1px solid #334155;
+        }
+
+        .next-piece-box::after {
+            content: '';
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, #06b6d4, #0ea5e9);
+            border-radius: 4px;
+            opacity: 0.3;
         }
 
         /* Right Panel */
@@ -236,7 +215,7 @@
         }
 
         .stat-card label {
-            font-size: 0.75rem;
+            font-size: 1rem;
             font-weight: 600;
             color: #94a3b8;
             text-transform: uppercase;
@@ -245,7 +224,7 @@
         }
 
         .stat-card .value {
-            font-size: 2rem;
+            font-size: 3rem;
             font-weight: 900;
             margin-top: 8px;
             color: #06b6d4;
@@ -265,7 +244,7 @@
         }
 
         .timer-box label {
-            font-size: 0.75rem;
+            font-size: 1rem;
             font-weight: 600;
             color: #64748b;
             text-transform: uppercase;
@@ -275,7 +254,7 @@
         }
 
         .timer-box .value {
-            font-size: 1.5rem;
+            font-size: 2.5rem;
             font-family: 'Courier New', monospace;
             font-weight: bold;
             color: #06b6d4;
@@ -292,7 +271,7 @@
             padding: 14px 20px;
             border: none;
             border-radius: 10px;
-            font-size: 1rem;
+            font-size: 1.1rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -381,7 +360,7 @@
         }
 
         .switch-group label {
-            font-size: 0.875rem;
+            font-size: 1rem;
             font-weight: 500;
             color: #cbd5e1;
             cursor: pointer;
@@ -390,47 +369,32 @@
 
         .switch {
             position: relative;
-            display: inline-block;
             width: 48px;
             height: 28px;
-        }
-
-        .switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
             background: #334155;
-            transition: 0.3s;
             border-radius: 14px;
+            cursor: pointer;
+            transition: background 0.3s;
         }
 
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 20px;
-            width: 20px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: 0.3s;
-            border-radius: 50%;
-        }
-
-        .switch input:checked + .slider {
+        .switch.active {
             background: #06b6d4;
         }
 
-        .switch input:checked + .slider:before {
-            transform: translateX(20px);
+        .switch::after {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            transition: left 0.3s;
+        }
+
+        .switch.active::after {
+            left: 24px;
         }
 
         /* Bot Settings */
@@ -540,8 +504,12 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
         }
     </style>
 </head>
@@ -564,18 +532,13 @@
                             <h2>PRESS START</h2>
                             <p>Ready to play?</p>
                         </div>
-                        <div id="tetris">
-                            <div id="tetris-area"></div>
-                            <div id="tetris-gameover">Game Over</div>
-                            <div id="tetris-keys" style="display: none;">Controles activos</div>
-                        </div>
                     </div>
                 </div>
 
                 <!-- Next Piece -->
                 <div class="next-piece">
                     <p>Next Piece</p>
-                    <div class="next-piece-box" id="tetris-nextpuzzle"></div>
+                    <div class="next-piece-box"></div>
                 </div>
             </div>
 
@@ -585,62 +548,53 @@
                 <div class="stats-grid">
                     <div class="stat-card highlight">
                         <label>Score</label>
-                        <div class="value" id="tetris-stats-score">0</div>
+                        <div class="value" id="scoreValue">0</div>
                     </div>
                     <div class="stat-card">
                         <label>Level</label>
-                        <div class="value" id="tetris-stats-level">1</div>
+                        <div class="value" id="levelValue">1</div>
                     </div>
                     <div class="stat-card">
                         <label>Lines</label>
-                        <div class="value" id="tetris-stats-lines">0</div>
+                        <div class="value" id="linesValue">0</div>
                     </div>
                     <div class="stat-card">
                         <label>APM</label>
-                        <div class="value" id="tetris-stats-apm">0</div>
+                        <div class="value" id="apmValue">0</div>
                     </div>
                 </div>
 
                 <!-- Timer -->
                 <div class="timer-box">
                     <label>Time</label>
-                    <div class="value" id="tetris-stats-time">0</div>
+                    <div class="value" id="timerValue">0:00</div>
                 </div>
 
                 <!-- Controls -->
                 <div class="controls">
-                    <button class="btn-primary" id="tetris-menu-start">▶ Play</button>
-                    <div id="tetris-pause">
-                        <button class="btn-secondary" id="tetris-menu-pause">⏸ Pause</button>
-                    </div>
-                    <div id="tetris-resume" style="display: none;">
-                        <button class="btn-secondary" id="tetris-menu-resume">▶ Resume</button>
-                    </div>
-                    <button class="btn-secondary" id="tetris-menu-highscores">🏆 Highscores</button>
-                    <button class="btn-secondary" id="tetris-menu-help">ℹ️ About</button>
+                    <button class="btn-primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+                    <button class="btn-secondary" onclick="newGame()">↻ New Game</button>
                 </div>
 
                 <!-- Settings -->
                 <div class="settings-panel">
                     <div class="settings-header">
                         <p>Game Modes</p>
-                        <div id="mode-indicator">Modo Clásico (12x22)</div>
+                        <button class="toggle-btn" onclick="toggleSettingsDetail()" title="Settings">⚙️</button>
                     </div>
 
                     <div class="mode-switches" id="modeList">
                         <div class="switch-group">
-                            <label for="tetris-coop-mode">Co-op Mode</label>
-                            <label class="switch">
-                                <input type="checkbox" id="tetris-coop-mode">
-                                <span class="slider"></span>
-                            </label>
+                            <label for="coopToggle">Co-op Mode</label>
+                            <div class="switch" id="coopToggle" onclick="toggleSwitch(this)"></div>
+                        </div>
+                        <div class="switch-group hidden" id="botGroup">
+                            <label for="botToggle">Enable Bot</label>
+                            <div class="switch" id="botToggle" onclick="toggleSwitch(this)"></div>
                         </div>
                         <div class="switch-group">
-                            <label for="tetris-zen-mode">Zen Mode</label>
-                            <label class="switch">
-                                <input type="checkbox" id="tetris-zen-mode">
-                                <span class="slider"></span>
-                            </label>
+                            <label for="zenToggle">Zen Mode</label>
+                            <div class="switch" id="zenToggle" onclick="toggleSwitch(this)"></div>
                         </div>
                     </div>
                 </div>
@@ -650,25 +604,17 @@
                     <div class="bot-settings-header">
                         ⚡ Bot Strategy
                     </div>
-                    <select id="botMode" onchange="if(window.bot){ window.bot.setGameplayMode(window.bot.GamePlayMode[this.value]); }">
+                    <select id="botMode" onchange="changeBotMode(this.value)">
                         <option value="SURVIVAL">SURVIVAL</option>
                         <option value="TETRIS_BUILDER">TETRIS_BUILDER</option>
                         <option value="PRO_ATTACK">PRO_ATTACK</option>
                         <option value="ZEN">ZEN</option>
                         <option value="BALANCED" selected>BALANCED</option>
                     </select>
-                    <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
-                        <label for="auto-mode-toggle" style="color:#cbd5e1; font-weight:600; font-size:0.85rem;">Auto Mode IA</label>
-                        <label class="switch" style="margin-left:auto;">
-                            <input type="checkbox" id="auto-mode-toggle" checked>
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <button class="btn-secondary" id="tetris-menu-ai" style="margin-top:12px; width:100%;">IA Co-op: OFF</button>
                 </div>
 
                 <!-- Audio Control -->
-                <button class="btn-secondary" id="audioBtn">🔊 Sound On</button>
+                <button class="btn-secondary" onclick="toggleAudio()" id="audioBtn">🔊 Sound On</button>
             </div>
         </div>
 
@@ -701,48 +647,32 @@
         </div>
     </div>
 
-    <div id="tetris-help" class="window" style="display: none;">
-        <div class="top">
-            About <span id="tetris-help-close" class="close">x</span>
-        </div>
-        <div class="content" style="margin-top: 1em;">
-            <div style="margin-top: 1em;">
-                <div>JsTetris es un juego tetris altamente personalizable escrito en JavaScript.</div>
-                <br>
-                <div>Author: Czarek Tomczak</div>
-                <div>Site: <a href="https://github.com/cztomczak/jstetris">github.com/cztomczak/jstetris</a></div>
-                <br>
-                <div>License: BSD revised (free for any use)</div>
-            </div>
-        </div>
-    </div>
-    <div id="tetris-highscores" class="window" style="display: none;">
-        <div class="top">
-            Highscores <span id="tetris-highscores-close" class="close">x</span>
-        </div>
-        <div class="content">
-            <div id="tetris-highscores-content"></div>
-            <br>
-            <span>Note: these scores are kept in cookies.</span>
-        </div>
-    </div>
-
     <script>
-        let gameState = 'idle';
+        let gameState = 'idle'; // idle, playing, paused, gameover
+        let score = 0;
+        let level = 1;
+        let lines = 0;
+        let apm = 0;
+        let time = 0;
         let isMuted = false;
+        let isCoopMode = false;
+        let isBotEnabled = false;
+        let isZenMode = false;
 
         // Generar grid de fondo
         function generateGameGrid() {
             const grid = document.getElementById('gameGrid');
             grid.innerHTML = '';
-
+            
+            // Líneas horizontales (20 líneas)
             for (let i = 0; i < 20; i++) {
                 const line = document.createElement('div');
                 line.className = 'grid-line-h';
                 line.style.top = `${(i + 1) * 5}%`;
                 grid.appendChild(line);
             }
-
+            
+            // Líneas verticales (12 líneas)
             for (let i = 0; i < 12; i++) {
                 const line = document.createElement('div');
                 line.className = 'grid-line-v';
@@ -754,7 +684,7 @@
         function updateGameMessage(state) {
             const message = document.getElementById('gameMessage');
             message.className = 'game-message ' + state;
-
+            
             switch(state) {
                 case 'idle':
                     message.innerHTML = '<h2>PRESS START</h2><p>Ready to play?</p>';
@@ -766,9 +696,63 @@
                     message.innerHTML = '<h2>PAUSED</h2>';
                     break;
                 case 'gameover':
-                    message.innerHTML = '<h2>GAME OVER</h2>';
+                    message.innerHTML = `<h2>GAME OVER</h2><p>Final Score: ${score}</p>`;
                     break;
             }
+        }
+
+        function togglePlay() {
+            if (gameState === 'playing') {
+                gameState = 'paused';
+                document.getElementById('playBtn').textContent = '▶ Resume';
+            } else if (gameState === 'paused') {
+                gameState = 'playing';
+                document.getElementById('playBtn').textContent = '⏸ Pause';
+            } else if (gameState === 'idle') {
+                gameState = 'playing';
+                document.getElementById('playBtn').textContent = '⏸ Pause';
+                startNewGame();
+            }
+            updateGameMessage(gameState);
+        }
+
+        function newGame() {
+            score = 0;
+            level = 1;
+            lines = 0;
+            apm = 0;
+            time = 0;
+            gameState = 'idle';
+            document.getElementById('playBtn').textContent = '▶ Play';
+            updateStats();
+            updateGameMessage('idle');
+        }
+
+        function startNewGame() {
+            console.log('Nuevo juego iniciado');
+        }
+
+        function toggleSwitch(element) {
+            element.classList.toggle('active');
+            
+            if (element.id === 'coopToggle') {
+                isCoopMode = element.classList.contains('active');
+                document.getElementById('botGroup').classList.toggle('hidden', !isCoopMode);
+                if (!isCoopMode) {
+                    document.getElementById('botToggle').classList.remove('active');
+                    document.getElementById('botSettings').classList.add('hidden');
+                    isBotEnabled = false;
+                }
+            } else if (element.id === 'botToggle') {
+                isBotEnabled = element.classList.contains('active');
+                document.getElementById('botSettings').classList.toggle('hidden', !isBotEnabled);
+            } else if (element.id === 'zenToggle') {
+                isZenMode = element.classList.contains('active');
+            }
+        }
+
+        function changeBotMode(mode) {
+            console.log('Bot mode cambiado a:', mode);
         }
 
         function toggleAudio() {
@@ -776,108 +760,35 @@
             document.getElementById('audioBtn').textContent = isMuted ? '🔇 Sound Off' : '🔊 Sound On';
         }
 
-        // Inicializar Tetris y bot respetando el principio de fast fail
-        const tetris = new Tetris();
-        tetris.unit = 18;
-        tetris.setGameMode(false);
-
-        let bot = null;
-        if (typeof TetrisBot === 'function') {
-            bot = new TetrisBot(tetris);
-            window.bot = bot;
-            tetris.updateBotToggleLabel();
-        } else {
-            console.error('TetrisBot no está definido; el modo IA no se inicializó.');
+        function toggleSettingsDetail() {
+            document.getElementById('modeList').classList.toggle('hidden');
         }
 
-        // Sincronizar botones y toggles con el motor existente
-        (function bindUiControls() {
-            const coopCheckbox = document.getElementById('tetris-coop-mode');
-            const zenCheckbox = document.getElementById('tetris-zen-mode');
-            const botToggleBtn = document.getElementById('tetris-menu-ai');
-            const playBtn = document.getElementById('tetris-menu-start');
-            const pauseBtn = document.getElementById('tetris-menu-pause');
-            const resumeBtn = document.getElementById('tetris-menu-resume');
-            const audioBtn = document.getElementById('audioBtn');
+        function updateStats() {
+            document.getElementById('scoreValue').textContent = score;
+            document.getElementById('levelValue').textContent = level;
+            document.getElementById('linesValue').textContent = lines;
+            document.getElementById('apmValue').textContent = apm;
+            
+            const mins = Math.floor(time / 60);
+            const secs = time % 60;
+            document.getElementById('timerValue').textContent = 
+                `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
 
-            if (coopCheckbox) {
-                coopCheckbox.addEventListener('change', function() {
-                    if (this.checked) {
-                        document.getElementById('botSettings').classList.remove('hidden');
-                    } else {
-                        document.getElementById('botSettings').classList.add('hidden');
-                    }
-                });
-            }
-
-            if (botToggleBtn) {
-                botToggleBtn.addEventListener('click', function() {
-                    if (!window.bot || !window.bot.toggle) {
-                        console.warn('[BOT] Toggle no disponible; instanciación fallida.');
-                        return;
-                    }
-                    window.bot.toggle();
-                    tetris.updateBotToggleLabel();
-                });
-            }
-
-            if (playBtn) {
-                playBtn.addEventListener('click', function() {
-                    tetris.start();
-                    gameState = 'playing';
-                    updateGameMessage(gameState);
-                });
-            }
-
-            if (pauseBtn) {
-                pauseBtn.addEventListener('click', function() {
-                    tetris.pause();
-                    gameState = 'paused';
-                    updateGameMessage(gameState);
-                });
-            }
-
-            if (resumeBtn) {
-                resumeBtn.addEventListener('click', function() {
-                    tetris.pause();
-                    gameState = 'playing';
-                    updateGameMessage(gameState);
-                });
-            }
-
-            if (audioBtn) {
-                audioBtn.addEventListener('click', toggleAudio);
-            }
-        })();
-
-        // Selector rápido de modo del bot vía teclado
-        document.addEventListener('keydown', function(event) {
-            if (!bot || !bot.setGameplayMode) { return; }
-            const modeMap = {
-                '1': bot.GamePlayMode.SURVIVAL,
-                '2': bot.GamePlayMode.TETRIS_BUILDER,
-                '3': bot.GamePlayMode.PRO_ATTACK
-            };
-            const requestedMode = modeMap[event.key];
-            if (requestedMode) {
-                bot.setGameplayMode(requestedMode);
-                document.getElementById('botMode').value = bot.getModeName(requestedMode);
-            }
+        // Inicializar
+        window.addEventListener('load', () => {
+            generateGameGrid();
+            updateStats();
         });
 
-        // Mostrar mensaje de fin de juego cuando el engine actualice el DOM
-        const gameOverObserver = new MutationObserver(() => {
-            const gameOverVisible = document.getElementById('tetris-gameover').style.display === 'block';
-            if (gameOverVisible) {
-                gameState = 'gameover';
-                updateGameMessage('gameover');
+        // Simulación de timer para demostración
+        setInterval(() => {
+            if (gameState === 'playing') {
+                time++;
+                updateStats();
             }
-        });
-        gameOverObserver.observe(document.getElementById('tetris-gameover'), { attributes: true, attributeFilter: ['style'] });
-
-        generateGameGrid();
-        updateGameMessage(gameState);
-
+        }, 1000);
     </script>
 </body>
 </html>
