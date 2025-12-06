@@ -636,9 +636,13 @@ function Tetris()
                         window.bot.enabled = true;
                         window.bot.currentPuzzle = self.botPuzzle;
                         window.bot.isThinking = false;
-        if (typeof window.bot.makeMove === 'function') {
-                window.bot.makeMove();
-        }
+                        if (typeof window.bot.makeMove === 'function') {
+                                window.bot.makeMove();
+                        }
+                }
+
+                if (self.botPuzzle && self.botPuzzle.isRunning()) {
+                        self.botPuzzle.fallDown();
                 }
         };
 
