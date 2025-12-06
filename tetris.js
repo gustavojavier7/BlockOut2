@@ -802,16 +802,34 @@ function Tetris()
 		this.keys = [];
 		this.funcs = [];
 
-		var self = this;
-		var UI_FOCUS_SELECTORS = "input, select, textarea, button, .switch, .toggle-btn";
-		var ALLOWED_GAME_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "]); // Compatibilidad con navegadores modernos.
-		var KEY_NAME_TO_CODE = {
-			"ArrowUp": self.up,
-			"ArrowDown": self.down,
-			"ArrowLeft": self.left,
-			"ArrowRight": self.right,
-			" ": self.space
-		};
+                var self = this;
+                var UI_FOCUS_SELECTORS = ".control-panel, input, select, textarea, button, .switch, .toggle-btn";
+                var ALLOWED_GAME_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "]); // Compatibilidad con navegadores modernos.
+                var LEGACY_GAME_KEYS = new Set([self.left, self.right, self.up, self.down, self.space]);
+                var KEY_NAME_TO_CODE = {
+                        "ArrowUp": self.up,
+                        "ArrowDown": self.down,
+                        "ArrowLeft": self.left,
+                        "ArrowRight": self.right,
+                        " ": self.space
+                };
+
+                /**
+                 * Detecta si el evento ocurre con la UI en foco. Fast-fail para evitar que
+                 * el motor procese entradas cuando el jugador interactúa con botones u opciones.
+                 */
+                var isUIFocused = function(event) {
+                        var targetMatch = event && event.target && typeof event.target.closest === "function"
+                                ? event.target.closest(UI_FOCUS_SELECTORS)
+                                : null;
+
+                        if (targetMatch) {
+                                return true;
+                        }
+
+                        var activeElement = document.activeElement;
+                        return !!(activeElement && activeElement !== document.body && typeof activeElement.closest === "function" && activeElement.closest(UI_FOCUS_SELECTORS));
+                };
 
 		/**
 		 * @param int key
@@ -834,19 +852,22 @@ function Tetris()
 		{
 			var event = e || window.event;
 
-			// Fast-fail: si un elemento interactivo tiene el foco, no procesar atajos de juego.
-			var activeElement = document.activeElement;
-			if (activeElement && typeof activeElement.matches === "function" && activeElement.matches(UI_FOCUS_SELECTORS)) {
-				return;
-			}
+                        // Fast-fail: si un elemento interactivo tiene el foco, no procesar atajos de juego.
+                        if (isUIFocused(event)) {
+                                if (typeof event.stopImmediatePropagation === "function") {
+                                        event.stopImmediatePropagation();
+                                }
+                                event.preventDefault();
+                                return;
+                        }
 
-			var keyName = event && event.key ? event.key : "";
-			var keyCode = event && typeof event.keyCode === "number" ? event.keyCode : KEY_NAME_TO_CODE[keyName];
+                        var keyName = event && typeof event.key === "string" ? event.key : "";
+                        var keyCode = event && typeof event.keyCode === "number" ? event.keyCode : KEY_NAME_TO_CODE[keyName];
 
-			if (ALLOWED_GAME_KEYS.has(keyName) && event) {
-				event.preventDefault();
-				if (typeof event.stopImmediatePropagation === "function") {
-					event.stopImmediatePropagation();
+                        if ((ALLOWED_GAME_KEYS.has(keyName) || LEGACY_GAME_KEYS.has(keyCode)) && event) {
+                                event.preventDefault();
+                                if (typeof event.stopImmediatePropagation === "function") {
+                                        event.stopImmediatePropagation();
 				}
 			}
 
