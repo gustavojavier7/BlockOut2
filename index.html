@@ -321,19 +321,23 @@
 
         function toggleSwitch(element) {
             const currentState = getEngineModeState();
+            element.classList.toggle('active');
             const isActive = element.classList.contains('active');
             let updatedState = currentState;
 
             if (element.id === 'coopToggle') {
-                updatedState = pushEngineModeState({ coop: !isActive });
+                updatedState = pushEngineModeState({ coop: isActive });
             } else if (element.id === 'iaAssistToggle') {
-                updatedState = pushEngineModeState({ ia: !isActive });
+                updatedState = pushEngineModeState({ ia: isActive });
             } else if (element.id === 'zenToggle') {
-                updatedState = pushEngineModeState({ zen: !isActive });
+                updatedState = pushEngineModeState({ zen: isActive });
             }
 
             syncBotSettingsVisibility(updatedState);
             syncBotController();
+            if (typeof tetris.updateModeStatus === 'function') {
+                tetris.updateModeStatus();
+            }
         }
 
         function toggleSettingsDetail() {

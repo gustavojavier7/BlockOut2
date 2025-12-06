@@ -465,7 +465,10 @@ function Tetris()
                 self.clearAllTimers();
                 self.resetBotPlanning();
                 self.applyModeRules(modeState);
-                self.unlockInput();
+
+                setTimeout(function() {
+                        self.unlockInput();
+                }, 150);
         };
 
         /**
