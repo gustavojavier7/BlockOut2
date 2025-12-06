@@ -342,7 +342,9 @@ function Tetris()
                 syncPanelToggle('iaAssistToggle', self.isIAAssist);
                 syncPanelToggle('zenToggle', self.zenMode);
 
-                var isGameRunning = self.humanPuzzle && self.humanPuzzle.isRunning();
+                var isGameRunning =
+                        (self.humanPuzzle && self.humanPuzzle.isRunning && self.humanPuzzle.isRunning()) ||
+                        (self.botPuzzle && self.botPuzzle.isRunning && self.botPuzzle.isRunning());
 
                 if (!isGameRunning) {
                         if (self.area && wasCoop !== requestedCoop) {
