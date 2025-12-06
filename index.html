@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris Moderno</title>
+    <link href="tetris.css" rel="stylesheet" type="text/css">
+    <link href="tetris.ico" rel="shortcut icon">
+    <script type="text/javascript" src="tetris.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>TETRIS</h1>
+            <p>Experience the Classic</p>
+        </div>
+        <div class="main-grid">
+            <div class="control-panel">
+                <div class="win95-block stats-grid">
+                    <div class="stat-card highlight">
+                        <label>Score</label>
+                        <div class="value" id="tetris-stats-score">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>Level</label>
+                        <div class="value" id="tetris-stats-level">1</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>Lines</label>
+                        <div class="value" id="tetris-stats-lines">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <label>APM</label>
+                        <div class="value" id="tetris-stats-apm">0</div>
+                    </div>
+                </div>
+
+                <div class="win95-block timer-box">
+                    <label>Time</label>
+                    <div class="value" id="tetris-stats-time">0:00</div>
+                </div>
+
+                <div class="win95-block controls">
+                    <button class="btn-primary" id="playBtn" onclick="togglePlay()">▶ Play</button>
+                    <button class="btn-secondary" onclick="restartGame()">↻ New Game</button>
+                </div>
+
+                <div class="win95-block settings-panel">
+                    <div class="settings-header">
+                        <p>Game Modes</p>
+                        <button class="toggle-btn" onclick="toggleSettingsDetail()" title="Settings">⚙️</button>
+                    </div>
+
+                    <div class="mode-switches" id="modeList">
+                        <div class="switch-group">
+                            <label for="coopToggle">Co-op Mode</label>
+                            <div class="switch" id="coopToggle" onclick="toggleSwitch(this)"></div>
+                        </div>
+                        <div class="switch-group">
+                            <label for="iaAssistToggle">IA-ASSIST</label>
+                            <div class="switch" id="iaAssistToggle" onclick="toggleSwitch(this)"></div>
+                        </div>
+                        <div class="switch-group">
+                            <label for="zenToggle">Zen Mode</label>
+                            <div class="switch" id="zenToggle" onclick="toggleSwitch(this)"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="win95-block bot-settings hidden" id="botSettings">
+                    <div class="bot-settings-header">
+                        ⚡ Bot Strategy
+                    </div>
+                    <select id="botMode"
+                        onchange="if(window.bot && window.bot.setGameplayMode) window.bot.setGameplayMode(window.bot.GamePlayMode[this.value])">
+                        <option value="SURVIVAL">SURVIVAL</option>
+                        <option value="TETRIS_BUILDER">TETRIS_BUILDER</option>
+                        <option value="PRO_ATTACK">PRO_ATTACK</option>
+                        <option value="ZEN">ZEN</option>
+                        <option value="BALANCED" selected>BALANCED</option>
+                    </select>
+                </div>
+
+                <button class="btn-secondary" onclick="toggleAudio()" id="audioBtn">🔊 Sound On</button>
+            </div>
+            <div class="game-section">
+                <div class="game-board">
+                    <div class="inline-next-piece win95-block">
+                        <p>Next Piece</p>
+                        <div class="next-piece-box" id="tetris-nextpuzzle"></div>
+                    </div>
+                    <div class="game-grid" id="gameGrid"></div>
+
+                    <div id="tetris-area"></div>
+
+                    <div class="game-message idle" id="gameMessage">
+                        <h2>PRESS START</h2>
+                        <p>Ready to play?</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: none;">
+            <div id="tetris-help"></div>
+            <div id="tetris-highscores">
+                <div id="tetris-highscores-content"></div>
+                <span id="tetris-highscores-close"></span>
+            </div>
+            <span id="tetris-help-close"></span>
+
+            <button id="tetris-menu-start"></button>
+            <div id="tetris-pause"><button id="tetris-menu-pause"></button></div>
+            <div id="tetris-resume"><button id="tetris-menu-resume"></button></div>
+            <button id="tetris-menu-help"></button>
+            <button id="tetris-menu-highscores"></button>
+
+            <input type="checkbox" id="tetris-coop-mode">
+            <input type="checkbox" id="tetris-zen-mode">
+            <div id="tetris-keys"></div>
+        </div>
+
+        <div id="tetris-gameover" style="display:none;"></div>
+    </div>
+
+    <script>
+        let zoomRatio = 1;
+        let gameState = 'idle';
+        let isMuted = false;
+        let isCoopMode = false;
+        let isIAAssist = false;
+        let isZenMode = false;
+
+        var tetris = new Tetris();
+        tetris.unit = 20;
+        tetris.areaX = 12;
+        tetris.areaY = 22;
+
+        if (typeof TetrisBot === 'function') {
+            window.bot = new TetrisBot(tetris);
+            window.bot.enabled = false;
+        }
+
+        // Interceptar teclado: solo permitir teclas de control de pieza
+        const ALLOWED_GAME_KEYS = new Set([37, 38, 39, 40, 32]); // ←, ↑, →, ↓, Space
+        // Captura en fase de captura para suprimir acciones por defecto de la UI
+        window.addEventListener('keydown', function (e) {
+            if (ALLOWED_GAME_KEYS.has(e.keyCode)) {
+                // Permitir que llegue al motor, pero evitar comportamiento por defecto (botón click/scroll)
+                e.preventDefault();
+                return;
+            }
+            // Bloquear el resto de teclas cuando se interactúa con la UI
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+        window.addEventListener('keyup', function (e) {
+            if (ALLOWED_GAME_KEYS.has(e.keyCode)) {
+                e.preventDefault();
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
+
+        // Evitar que elementos de la UI queden con foco y consuman la barra espaciadora
+        document.addEventListener('click', function (e) {
+            const uiEl = e.target.closest('.control-panel, .switch, .toggle-btn, button, select');
+            if (uiEl) {
+                setTimeout(function () {
+                    if (document.activeElement && document.activeElement !== document.body) {
+                        document.activeElement.blur();
+                    }
+                }, 0);
+            }
+        });
+
+        function generateGameGrid() {
+            const grid = document.getElementById('gameGrid');
+            grid.innerHTML = '';
+            for (let i = 0; i < 20; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line-h';
+                line.style.top = `${(i + 1) * 5}%`;
+                grid.appendChild(line);
+            }
+            for (let i = 0; i < 12; i++) {
+                const line = document.createElement('div');
+                line.className = 'grid-line-v';
+                line.style.left = `${(i + 1) * 8.33}%`;
+                grid.appendChild(line);
+            }
+        }
+
+        function updateGameMessage(state) {
+            const message = document.getElementById('gameMessage');
+            message.className = 'game-message ' + state;
+            message.style.display = 'block';
+
+            switch (state) {
+                case 'idle':
+                    message.innerHTML = '<h2>PRESS START</h2><p>Ready to play?</p>';
+                    break;
+                case 'playing':
+                    message.style.display = 'none';
+                    break;
+                case 'paused':
+                    message.innerHTML = '<h2>PAUSED</h2>';
+                    break;
+                case 'gameover':
+                    let finalScore = tetris.stats.getScore();
+                    message.innerHTML = `<h2>GAME OVER</h2><p>Final Score: ${finalScore}</p>`;
+                    break;
+            }
+        }
+
+        function togglePlay() {
+            const btn = document.getElementById('playBtn');
+
+            if (gameState === 'idle' || gameState === 'gameover') {
+                gameState = 'playing';
+                btn.textContent = '⏸ Pause';
+                tetris.start();
+                updateGameMessage('playing');
+            } else if (gameState === 'playing') {
+                gameState = 'paused';
+                btn.textContent = '▶ Resume';
+                tetris.pause();
+                updateGameMessage('paused');
+            } else if (gameState === 'paused') {
+                gameState = 'playing';
+                btn.textContent = '⏸ Pause';
+                tetris.pause();
+                updateGameMessage('playing');
+            }
+        }
+
+        function restartGame() {
+            gameState = 'playing';
+            document.getElementById('playBtn').textContent = '⏸ Pause';
+            tetris.start();
+            updateGameMessage('playing');
+        }
+
+        const originalGameOver = tetris.gameOver;
+        tetris.gameOver = function () {
+            originalGameOver.apply(tetris);
+            gameState = 'gameover';
+            document.getElementById('playBtn').textContent = '▶ Play';
+            updateGameMessage('gameover');
+        };
+
+        function syncBotController() {
+            if (window.bot) {
+                window.bot.enabled = (isCoopMode || isIAAssist);
+            }
+        }
+
+        function toggleSwitch(element) {
+            element.classList.toggle('active');
+            const isActive = element.classList.contains('active');
+
+            if (element.id === 'coopToggle') {
+                if (isActive && isIAAssist) {
+                    document.getElementById('iaAssistToggle').classList.remove('active');
+                    isIAAssist = false;
+                    tetris.disableIAAssist();
+                    alert('IA-ASSIST desactivado automáticamente (modo cooperativo activado)');
+                }
+
+                isCoopMode = isActive;
+                tetris.setGameMode(isCoopMode);
+
+                const botSettings = document.getElementById('botSettings');
+                if (botSettings && !isIAAssist) {
+                    botSettings.classList.add('hidden');
+                }
+
+                syncBotController();
+            } else if (element.id === 'iaAssistToggle') {
+                if (isActive && isCoopMode) {
+                    document.getElementById('coopToggle').classList.remove('active');
+                    isCoopMode = false;
+                    tetris.setGameMode(false);
+                    alert('Modo Co-op desactivado automáticamente (IA-ASSIST toma control exclusivo)');
+                }
+
+                isIAAssist = isActive;
+
+                if (isIAAssist) {
+                    tetris.enableIAAssist();
+                } else {
+                    tetris.disableIAAssist();
+                }
+
+                const botSettings = document.getElementById('botSettings');
+                if (botSettings) {
+                    botSettings.classList.toggle('hidden', !isIAAssist);
+                }
+
+                syncBotController();
+            } else if (element.id === 'zenToggle') {
+                isZenMode = isActive;
+                tetris.zenMode = isZenMode;
+                let zenCheck = document.getElementById("tetris-zen-mode");
+                if (zenCheck) { zenCheck.checked = isZenMode; zenCheck?.onchange?.(); }
+            }
+        }
+
+        function toggleSettingsDetail() {
+            document.getElementById('modeList').classList.toggle('hidden');
+        }
+
+        function toggleAudio() {
+            isMuted = !isMuted;
+            document.getElementById('audioBtn').textContent = isMuted ? '🔇 Sound Off' : '🔊 Sound On';
+        }
+
+        function changeBotMode(mode) {
+            if (window.bot && window.bot.setGameplayMode) {
+                window.bot.setGameplayMode(window.bot.GamePlayMode[mode]);
+            }
+        }
+
+        window.addEventListener('load', () => {
+            generateGameGrid();
+            tetris.updateResponsiveUnit();
+            document.getElementById('botSettings').classList.add('hidden');
+        });
+
+        function fitBoard() {
+            const boardContainer = document.querySelector('.game-board');
+            const tetrisArea = document.getElementById('tetris-area');
+
+            if (!boardContainer || !tetrisArea) return;
+
+            tetrisArea.style.transform = 'none';
+
+            const availWidth = boardContainer.clientWidth;
+            const availHeight = boardContainer.clientHeight;
+
+            const boardWidth = tetrisArea.offsetWidth;
+            const boardHeight = tetrisArea.offsetHeight;
+
+            const padding = 20;
+
+            const scaleX = (availWidth - padding) / boardWidth;
+            const scaleY = (availHeight - padding) / boardHeight;
+
+            let scale = Math.min(scaleX, scaleY);
+
+            if (scale < 1) {
+                tetrisArea.style.transform = `scale(${scale})`;
+            } else {
+                tetrisArea.style.transform = `scale(1)`;
+            }
+        }
+
+        window.addEventListener('resize', fitBoard);
+        window.addEventListener('load', () => {
+            setTimeout(fitBoard, 100);
+            setInterval(fitBoard, 2000);
+        });
+    </script>
+</body>
+
+</html>
