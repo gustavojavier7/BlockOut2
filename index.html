@@ -130,9 +130,6 @@
         let zoomRatio = 1;
         let gameState = 'idle';
         let isMuted = false;
-        let isCoopMode = false;
-        let isIAAssist = false;
-        let isZenMode = false;
 
         var tetris = new Tetris();
         tetris.unit = 20;
@@ -297,40 +294,46 @@
             }
         }
 
+        function getEngineModeState() {
+            return {
+                coop: !!tetris.isCoopMode,
+                ia: !!tetris.isIAAssist,
+                zen: !!tetris.zenMode
+            };
+        }
+
+        function pushEngineModeState(modeUpdates) {
+            const currentState = getEngineModeState();
+            tetris.updateGameMode({
+                coop: modeUpdates.coop ?? currentState.coop,
+                ia: modeUpdates.ia ?? currentState.ia,
+                zen: modeUpdates.zen ?? currentState.zen
+            });
+            return getEngineModeState();
+        }
+
+        function syncBotSettingsVisibility(modeState) {
+            const botSettings = document.getElementById('botSettings');
+            if (botSettings) {
+                botSettings.classList.toggle('hidden', !modeState.ia);
+            }
+        }
+
         function toggleSwitch(element) {
-            element.classList.toggle('active');
+            const currentState = getEngineModeState();
             const isActive = element.classList.contains('active');
+            let updatedState = currentState;
 
             if (element.id === 'coopToggle') {
-                tetris.updateGameMode({ coop: isActive, ia: isIAAssist, zen: isZenMode });
-                isCoopMode = tetris.isCoopMode;
-                isIAAssist = tetris.isIAAssist;
-                isZenMode = tetris.zenMode;
-
-                const botSettings = document.getElementById('botSettings');
-                if (botSettings && !isIAAssist) {
-                    botSettings.classList.add('hidden');
-                }
-
-                syncBotController();
+                updatedState = pushEngineModeState({ coop: !isActive });
             } else if (element.id === 'iaAssistToggle') {
-                tetris.updateGameMode({ coop: isCoopMode, ia: isActive, zen: isZenMode });
-                isCoopMode = tetris.isCoopMode;
-                isIAAssist = tetris.isIAAssist;
-                isZenMode = tetris.zenMode;
-
-                const botSettings = document.getElementById('botSettings');
-                if (botSettings) {
-                    botSettings.classList.toggle('hidden', !isIAAssist);
-                }
-
-                syncBotController();
+                updatedState = pushEngineModeState({ ia: !isActive });
             } else if (element.id === 'zenToggle') {
-                tetris.updateGameMode({ coop: isCoopMode, ia: isIAAssist, zen: isActive });
-                isCoopMode = tetris.isCoopMode;
-                isIAAssist = tetris.isIAAssist;
-                isZenMode = tetris.zenMode;
+                updatedState = pushEngineModeState({ zen: !isActive });
             }
+
+            syncBotSettingsVisibility(updatedState);
+            syncBotController();
         }
 
         function toggleSettingsDetail() {
