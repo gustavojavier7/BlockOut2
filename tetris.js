@@ -803,6 +803,15 @@ function Tetris()
 		this.funcs = [];
 
 		var self = this;
+		var UI_FOCUS_SELECTORS = "input, select, textarea, button, .switch, .toggle-btn";
+		var ALLOWED_GAME_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", " "]); // Compatibilidad con navegadores modernos.
+		var KEY_NAME_TO_CODE = {
+			"ArrowUp": self.up,
+			"ArrowDown": self.down,
+			"ArrowLeft": self.left,
+			"ArrowRight": self.right,
+			" ": self.space
+		};
 
 		/**
 		 * @param int key
@@ -823,10 +832,28 @@ function Tetris()
 		 */
 		this.event = function(e)
 		{
-			if (!e) { e = window.event; }
+			var event = e || window.event;
+
+			// Fast-fail: si un elemento interactivo tiene el foco, no procesar atajos de juego.
+			var activeElement = document.activeElement;
+			if (activeElement && typeof activeElement.matches === "function" && activeElement.matches(UI_FOCUS_SELECTORS)) {
+				return;
+			}
+
+			var keyName = event && event.key ? event.key : "";
+			var keyCode = event && typeof event.keyCode === "number" ? event.keyCode : KEY_NAME_TO_CODE[keyName];
+
+			if (ALLOWED_GAME_KEYS.has(keyName) && event) {
+				event.preventDefault();
+				if (typeof event.stopImmediatePropagation === "function") {
+					event.stopImmediatePropagation();
+				}
+			}
+
 			for (var i = 0; i < self.keys.length; i++) {
-				if (e.keyCode == self.keys[i]) {
+				if (keyCode == self.keys[i]) {
 					self.funcs[i]();
+					break;
 				}
 			}
 		};
