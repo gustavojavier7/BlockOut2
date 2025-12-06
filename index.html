@@ -143,27 +143,48 @@
             window.bot.enabled = false;
         }
 
-        // Interceptar teclado: solo permitir teclas de control de pieza
+        // Interceptar teclado: solo filtrar cuando la UI tiene foco
         const ALLOWED_GAME_KEYS = new Set([37, 38, 39, 40, 32]); // ←, ↑, →, ↓, Space
-        // Captura en fase de captura para suprimir acciones por defecto de la UI
-        window.addEventListener('keydown', function (e) {
-            if (ALLOWED_GAME_KEYS.has(e.keyCode)) {
-                // Permitir que llegue al motor, pero evitar comportamiento por defecto (botón click/scroll)
-                e.preventDefault();
+
+        /**
+         * Determina si algún elemento de la UI está activo.
+         * Se usa para evitar que los atajos globales bloqueen al motor cuando no es necesario.
+         */
+        function uiHasFocus(event) {
+            const focused = document.activeElement;
+            const focusTarget = focused && focused !== document.body ? focused : null;
+            const uiRootSelector = '.control-panel, .switch, .toggle-btn, button, select, input';
+
+            // Priorizar el objetivo del evento (p. ej. select enfocado con el mouse)
+            if (event.target && event.target.closest(uiRootSelector)) {
+                return true;
+            }
+
+            return !!(focusTarget && focusTarget.closest(uiRootSelector));
+        }
+
+        /**
+         * Filtro de teclado en captura: solo actúa cuando la UI tiene foco.
+         * Permite que el motor reciba las teclas sin duplicados cuando el foco está en el lienzo/juego.
+         */
+        function interceptKeyboard(event) {
+            if (!uiHasFocus(event)) {
+                return; // No intervenir: dejar que el motor maneje el teclado
+            }
+
+            if (ALLOWED_GAME_KEYS.has(event.keyCode)) {
+                // Evitar acciones del navegador (scroll/activación de botones) pero no bloquear propagación
+                event.preventDefault();
                 return;
             }
-            // Bloquear el resto de teclas cuando se interactúa con la UI
-            e.preventDefault();
-            e.stopPropagation();
-        }, true);
-        window.addEventListener('keyup', function (e) {
-            if (ALLOWED_GAME_KEYS.has(e.keyCode)) {
-                e.preventDefault();
-                return;
-            }
-            e.preventDefault();
-            e.stopPropagation();
-        }, true);
+
+            // Bloquear teclas ajenas a la UI cuando esta tiene foco
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        window.addEventListener('keydown', interceptKeyboard, true);
+        window.addEventListener('keyup', interceptKeyboard, true);
 
         // Evitar que elementos de la UI queden con foco y consuman la barra espaciadora
         document.addEventListener('click', function (e) {
