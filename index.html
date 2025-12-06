@@ -143,44 +143,61 @@
             window.bot.enabled = false;
         }
 
-        // Interceptar teclado: solo filtrar cuando la UI tiene foco
-        const ALLOWED_GAME_KEYS = new Set([37, 38, 39, 40, 32]); // ←, ↑, →, ↓, Space
+        // Interceptar teclado: filtrado de eventos cuando la UI tiene el foco
+        const UI_FOCUS_SELECTOR = '.control-panel, input, select, textarea, button, .switch, .toggle-btn';
+        const LEGACY_GAME_KEYS = new Set([37, 38, 39, 40, 32]); // ←, ↑, →, ↓, Space
+        const MODERN_GAME_KEYS = new Set(['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', ' ']);
+        const KEY_NAME_TO_CODE = {
+            ArrowLeft: 37,
+            ArrowUp: 38,
+            ArrowRight: 39,
+            ArrowDown: 40,
+            ' ': 32
+        };
 
         /**
-         * Determina si algún elemento de la UI está activo.
+         * Determina si algún elemento de la UI está activo o recibió el evento.
          * Se usa para evitar que los atajos globales bloqueen al motor cuando no es necesario.
          */
         function uiHasFocus(event) {
-            const focused = document.activeElement;
-            const focusTarget = focused && focused !== document.body ? focused : null;
-            const uiRootSelector = '.control-panel, .switch, .toggle-btn, button, select, input';
+            const focused = document.activeElement && document.activeElement !== document.body
+                ? document.activeElement
+                : null;
+            const target = event && event.target && typeof event.target.closest === 'function'
+                ? event.target.closest(UI_FOCUS_SELECTOR)
+                : null;
 
-            // Priorizar el objetivo del evento (p. ej. select enfocado con el mouse)
-            if (event.target && event.target.closest(uiRootSelector)) {
-                return true;
+            if (target) {
+                return true; // Fast-fail: el evento proviene de la UI
             }
 
-            return !!(focusTarget && focusTarget.closest(uiRootSelector));
+            return !!(focused && focused.closest(UI_FOCUS_SELECTOR));
         }
 
         /**
-         * Filtro de teclado en captura: solo actúa cuando la UI tiene foco.
-         * Permite que el motor reciba las teclas sin duplicados cuando el foco está en el lienzo/juego.
+         * Filtro de teclado en captura: bloquea entradas del juego cuando la UI tiene foco.
+         * También previene acciones del navegador (scroll, activación accidental) y detiene
+         * la propagación para evitar duplicados.
          */
         function interceptKeyboard(event) {
-            if (!uiHasFocus(event)) {
-                return; // No intervenir: dejar que el motor maneje el teclado
-            }
+            const keyName = typeof event.key === 'string' ? event.key : '';
+            const keyCode = typeof event.keyCode === 'number' ? event.keyCode : KEY_NAME_TO_CODE[keyName];
 
-            if (ALLOWED_GAME_KEYS.has(event.keyCode)) {
-                // Evitar acciones del navegador (scroll/activación de botones) pero no bloquear propagación
-                event.preventDefault();
+            if (!uiHasFocus(event)) {
+                // El foco no está en la UI: el motor maneja el teclado sin interferencias externas.
+                if (MODERN_GAME_KEYS.has(keyName) || LEGACY_GAME_KEYS.has(keyCode)) {
+                    event.preventDefault();
+                }
                 return;
             }
 
-            // Bloquear teclas ajenas a la UI cuando esta tiene foco
+            // El evento pertenece a la UI: anular comportamiento y evitar que el motor lo lea.
             event.preventDefault();
-            event.stopPropagation();
+            if (typeof event.stopImmediatePropagation === 'function') {
+                event.stopImmediatePropagation();
+            } else {
+                event.stopPropagation();
+            }
         }
 
         window.addEventListener('keydown', interceptKeyboard, true);
@@ -188,7 +205,7 @@
 
         // Evitar que elementos de la UI queden con foco y consuman la barra espaciadora
         document.addEventListener('click', function (e) {
-            const uiEl = e.target.closest('.control-panel, .switch, .toggle-btn, button, select');
+            const uiEl = e.target.closest(UI_FOCUS_SELECTOR);
             if (uiEl) {
                 setTimeout(function () {
                     if (document.activeElement && document.activeElement !== document.body) {
