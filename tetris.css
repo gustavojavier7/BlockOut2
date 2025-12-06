@@ -58,6 +58,18 @@ body {
         font-size: 0.6rem;
 }
 
+.header .version {
+        font-size: 0.8rem;
+        color: #0050a4;
+}
+
+#mode-status {
+        margin-top: 6px;
+        font-size: 0.65rem;
+        color: #ffffff;
+        text-shadow: 0 0 6px rgba(0, 0, 0, 0.45);
+}
+
 .main-grid {
         flex: 1;
         display: grid;
@@ -283,9 +295,23 @@ button:active {
 .block5 { background: #ffbe7d; }
 .block6 { background: #ffa07d; }
 
+@keyframes botPulse {
+        0% { filter: brightness(1); }
+        50% { filter: brightness(1.8); }
+        100% { filter: brightness(1); }
+}
+
+.bot-controlled {
+        opacity: 0.75;
+        filter: saturate(1.5);
+        outline: 1px solid rgba(0, 255, 255, 0.25);
+        box-shadow: 0 0 6px rgba(0, 255, 255, 0.4);
+        animation: botPulse 1.5s infinite ease-in-out;
+}
+
 .bot-ghost {
-        opacity: 0.3;
-        border: 1px dashed #000;
+        opacity: 0.35;
+        filter: drop-shadow(0 0 3px #00e5ff);
 }
 
 #tetris-keys,
