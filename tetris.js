@@ -388,7 +388,18 @@ function Tetris()
                         }
                 }
 
+                console.info('[SWAP] Autoridad aplicada', {
+                        modo: self.isIAAssist ? 'ia-assist' : (self.isCoopMode ? 'coop' : 'solo'),
+                        humanoActivo: !!(self.humanPuzzle && self.humanPuzzle.isRunning && self.humanPuzzle.isRunning()),
+                        botActivo: !!(self.botPuzzle && self.botPuzzle.isRunning && self.botPuzzle.isRunning())
+                });
+
                 if (self.humanPuzzle && self.humanPuzzle.isRunning && self.humanPuzzle.isRunning()) {
+                        self.humanPuzzle.fallDown();
+                }
+
+                // Asegurar reanudación inmediata del ciclo de caída
+                if (self.humanPuzzle && !self.humanPuzzle.fallDownID && self.humanPuzzle.isRunning()) {
                         self.humanPuzzle.fallDown();
                 }
         };
@@ -400,6 +411,12 @@ function Tetris()
          */
         this.updateGameMode = function(modeState)
         {
+                console.info('[SWAP] Inicio de hot-swap de modo', {
+                        coop: !!(modeState && modeState.coop),
+                        ia: !!(modeState && modeState.ia),
+                        zen: !!(modeState && modeState.zen)
+                });
+
                 self.pauseInput();
                 self.freezeBoard();
                 self.clearAllTimers();
@@ -417,6 +434,12 @@ function Tetris()
                 var requestedCoop = !!(modeState && modeState.coop);
                 var requestedIA = !!(modeState && modeState.ia);
                 var requestedZen = !!(modeState && modeState.zen);
+
+                console.info('[SWAP] Aplicando reglas de modo', {
+                        coop: requestedCoop,
+                        ia: requestedIA,
+                        zen: requestedZen
+                });
 
                 // Fast fail: IA-ASSIST no puede coexistir con Co-op.
                 if (requestedCoop && requestedIA) {
@@ -742,6 +765,9 @@ function Tetris()
 
                 var actor = targetPuzzle || self.humanPuzzle;
 
+                // Nunca operar sobre botPuzzle controlado por IA
+                if (actor && !actor.isHumanControlled) return;
+
                 // Fast-fail: sin actor activo no hay nada que rotar.
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
 
@@ -764,6 +790,9 @@ function Tetris()
                 if (self.inputLocked) { return; }
 
                 var actor = targetPuzzle || self.humanPuzzle;
+
+                // Nunca operar sobre botPuzzle controlado por IA
+                if (actor && !actor.isHumanControlled) return;
 
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
 
@@ -791,6 +820,9 @@ function Tetris()
 
                 var actor = targetPuzzle || self.humanPuzzle;
 
+                // Nunca operar sobre botPuzzle controlado por IA
+                if (actor && !actor.isHumanControlled) return;
+
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
 
                 if (actor.mayMoveLeft()) {
@@ -813,6 +845,9 @@ function Tetris()
 
                 var actor = targetPuzzle || self.humanPuzzle;
 
+                // Nunca operar sobre botPuzzle controlado por IA
+                if (actor && !actor.isHumanControlled) return;
+
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
 
                 if (actor.mayMoveRight()) {
@@ -834,6 +869,9 @@ function Tetris()
                 if (self.inputLocked) { return; }
 
                 var actor = targetPuzzle || self.humanPuzzle;
+
+                // Nunca operar sobre botPuzzle controlado por IA
+                if (actor && !actor.isHumanControlled) return;
 
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
 
