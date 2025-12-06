@@ -134,6 +134,7 @@ function Tetris()
         this.areaY = 22;
         this.isCoopMode = false; // Estado explícito del modo de juego
         this.isIAAssist = false; // Flag interno para IA-ASSIST
+        this.inputLocked = false; // Bloquea los comandos mientras se recalculan los modos
 
         this.highscores = new Highscores(10);
         this.paused = false;
@@ -295,11 +296,123 @@ function Tetris()
         };
 
         /**
+         * Bloquea temporalmente la entrada para evitar carreras durante el swap de modos.
+         */
+        this.pauseInput = function()
+        {
+                self.inputLocked = true;
+        };
+
+        /**
+         * Desbloquea la entrada después de un cambio de modo seguro.
+         */
+        this.unlockInput = function()
+        {
+                self.inputLocked = false;
+        };
+
+        /**
+         * Congela el tablero: detiene cualquier caída en curso sin destruir el estado.
+         */
+        this.freezeBoard = function()
+        {
+                if (self.humanPuzzle && self.humanPuzzle.isRunning()) { self.humanPuzzle.clearTimers(); }
+                if (self.botPuzzle && self.botPuzzle.isRunning()) { self.botPuzzle.clearTimers(); }
+        };
+
+        /**
+         * Limpia todos los timers activos de las piezas humanas y del bot.
+         */
+        this.clearAllTimers = function()
+        {
+                if (self.humanPuzzle && typeof self.humanPuzzle.clearTimers === 'function') {
+                        self.humanPuzzle.clearTimers();
+                }
+
+                if (self.botPuzzle && typeof self.botPuzzle.clearTimers === 'function') {
+                        self.botPuzzle.clearTimers();
+                }
+        };
+
+        /**
+         * Restablece cualquier planificación en curso del bot.
+         */
+        this.resetBotPlanning = function()
+        {
+                if (!window.bot) { return; }
+
+                if (typeof window.bot.cancelPlanning === 'function') {
+                        window.bot.cancelPlanning();
+                        return;
+                }
+
+                window.bot.bestBotMove = null;
+                window.bot.predictedBoard = null;
+                window.bot.isThinking = false;
+                if (typeof window.bot.clearGhostPreview === 'function') {
+                        window.bot.clearGhostPreview();
+                }
+        };
+
+        /**
+         * Establece la autoridad del dueño de la pieza activa y reinicia la caída segura.
+         */
+        this.applyOwnerRules = function()
+        {
+                if (self.isIAAssist) {
+                        self.humanPuzzle = null;
+                        if (self.botPuzzle) {
+                                self.botPuzzle.isHumanControlled = false;
+                                self.botPuzzle.running = true;
+                                self.botPuzzle.stopped = false;
+                        }
+                } else if (self.isCoopMode) {
+                        if (self.humanPuzzle) {
+                                self.humanPuzzle.isHumanControlled = true;
+                                self.humanPuzzle.running = true;
+                                self.humanPuzzle.stopped = false;
+                        }
+                        if (self.botPuzzle) {
+                                self.botPuzzle.isHumanControlled = false; // no gravedad del bot
+                                self.botPuzzle.running = false;
+                        }
+                } else {
+                        if (self.botPuzzle && typeof self.botPuzzle.clearTimers === 'function') {
+                                self.botPuzzle.clearTimers();
+                        }
+                        self.botPuzzle = null;
+                        if (self.humanPuzzle) {
+                                self.humanPuzzle.isHumanControlled = true;
+                                self.humanPuzzle.running = true;
+                                self.humanPuzzle.stopped = false;
+                        }
+                }
+
+                if (self.humanPuzzle && self.humanPuzzle.isRunning && self.humanPuzzle.isRunning()) {
+                        self.humanPuzzle.fallDown();
+                }
+        };
+
+        /**
          * Centraliza el estado del modo de juego para evitar condiciones de carrera.
          * Aplica reglas de exclusión entre Co-op y IA-ASSIST y sincroniza la UI.
          * @param {{coop:boolean, ia:boolean, zen:boolean}} modeState
          */
         this.updateGameMode = function(modeState)
+        {
+                self.pauseInput();
+                self.freezeBoard();
+                self.clearAllTimers();
+                self.resetBotPlanning();
+                self.applyModeRules(modeState);
+                self.unlockInput();
+        };
+
+        /**
+         * Aplica las reglas específicas de modo y sincroniza UI y estado.
+         * @param {{coop:boolean, ia:boolean, zen:boolean}} modeState
+         */
+        this.applyModeRules = function(modeState)
         {
                 var requestedCoop = !!(modeState && modeState.coop);
                 var requestedIA = !!(modeState && modeState.ia);
@@ -411,6 +524,8 @@ function Tetris()
                 } else {
                         self.disableIAAssist();
                 }
+
+                self.applyOwnerRules();
 
                 if (self.humanPuzzle && self.humanPuzzle.isRunning() && self.humanPuzzle.fallDownID) {
                         self.humanPuzzle.speed = self.zenMode ? 1000 : (80 + (700 / self.stats.getLevel()));
@@ -623,6 +738,8 @@ function Tetris()
 	 */
         this.up = function(targetPuzzle)
         {
+                if (self.inputLocked) { return; }
+
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 // Fast-fail: sin actor activo no hay nada que rotar.
@@ -644,6 +761,8 @@ function Tetris()
 	 */
         this.down = function(targetPuzzle)
         {
+                if (self.inputLocked) { return; }
+
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
@@ -668,6 +787,8 @@ function Tetris()
 	 */
         this.left = function(targetPuzzle)
         {
+                if (self.inputLocked) { return; }
+
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
@@ -688,6 +809,8 @@ function Tetris()
 	 */
         this.right = function(targetPuzzle)
         {
+                if (self.inputLocked) { return; }
+
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
@@ -708,6 +831,8 @@ function Tetris()
 	 */
         this.space = function(targetPuzzle)
         {
+                if (self.inputLocked) { return; }
+
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
@@ -1678,9 +1803,11 @@ function Tetris()
 		 * @return void
 		 * @access event
 		 */
-		this.fallDown = function()
-		{
-			if (self.isRunning()) {
+                this.fallDown = function()
+                {
+                        if (!self.isHumanControlled && self.tetris.isCoopMode && !self.tetris.isIAAssist) { return; }
+
+                        if (self.isRunning()) {
                                 if (self.mayMoveDown()) {
                                         self.moveDown();
                                         self.fallDownID = setTimeout(self.fallDown, self.speed);
@@ -2413,6 +2540,14 @@ this.setGameplayMode(this.gameplayMode);
                         self.isThinking = false; // Detener procesos pendientes
                         self.bestBotMove = null;
                 }
+        };
+
+        // Cancela cualquier planificación pendiente o previsualización activa.
+        this.cancelPlanning = function() {
+                self.isThinking = false;
+                self.bestBotMove = null;
+                self.predictedBoard = null;
+                self.clearGhostPreview();
         };
 
 // --- BUCLE DE DECISIÓN (FAST-FAIL) ---
