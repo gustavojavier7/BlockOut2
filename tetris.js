@@ -354,6 +354,46 @@ function Tetris()
                 }
         };
 
+        this.updateControlStyles = function(actor)
+        {
+                if (!actor || !actor.elements || typeof actor.elements.forEach !== 'function') { return; }
+
+                var shouldMarkBot = !actor.isHumanControlled;
+                var toggleVisual = function(el) {
+                        if (!el || !el.classList) { return; }
+                        if (shouldMarkBot) {
+                                el.classList.add('bot-controlled');
+                        } else {
+                                el.classList.remove('bot-controlled');
+                        }
+                };
+
+                actor.elements.forEach(toggleVisual);
+                if (actor.nextElements && typeof actor.nextElements.forEach === 'function') {
+                        actor.nextElements.forEach(toggleVisual);
+                }
+        };
+
+        this.updateModeStatus = function()
+        {
+                var el = document.getElementById('mode-status');
+                if (!el) { return; }
+
+                if (self.isIAAssist) {
+                        el.textContent = 'MODO: IA-ASSIST (Bot en control)';
+                        el.style.color = '#00e5ff';
+                } else if (self.isCoopMode) {
+                        el.textContent = 'MODO: CO-OP (Humano+Bot)';
+                        el.style.color = '#00cc44';
+                } else if (self.zenMode) {
+                        el.textContent = 'MODO: ZEN (Lento Control Humano)';
+                        el.style.color = '#ffaa00';
+                } else {
+                        el.textContent = 'MODO: CLÁSICO';
+                        el.style.color = '#ffffff';
+                }
+        };
+
         /**
          * Establece la autoridad del dueño de la pieza activa y reinicia la caída segura.
          */
@@ -387,6 +427,9 @@ function Tetris()
                                 self.humanPuzzle.stopped = false;
                         }
                 }
+
+                self.updateControlStyles(self.humanPuzzle);
+                self.updateControlStyles(self.botPuzzle);
 
                 console.info('[SWAP] Autoridad aplicada', {
                         modo: self.isIAAssist ? 'ia-assist' : (self.isCoopMode ? 'coop' : 'solo'),
@@ -562,6 +605,8 @@ function Tetris()
                                 self.updateBotToggleLabel();
                         }
                 }
+
+                self.updateModeStatus();
         };
 
         /**
@@ -765,11 +810,11 @@ function Tetris()
 
                 var actor = targetPuzzle || self.humanPuzzle;
 
-                // Nunca operar sobre botPuzzle controlado por IA
-                if (actor && !actor.isHumanControlled) return;
+                // Protección total: ignorar entradas cuando el bot está al mando
+                if (!actor || !actor.isHumanControlled) { return; }
 
                 // Fast-fail: sin actor activo no hay nada que rotar.
-                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+                if (!actor.isRunning() || actor.isStopped()) { return; }
 
                 if (actor.mayRotate()) {
                         actor.rotate();
@@ -792,9 +837,9 @@ function Tetris()
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 // Nunca operar sobre botPuzzle controlado por IA
-                if (actor && !actor.isHumanControlled) return;
+                if (!actor || !actor.isHumanControlled) { return; }
 
-                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+                if (!actor.isRunning() || actor.isStopped()) { return; }
 
                 if (actor.mayMoveDown()) {
                         if (actor.isHumanControlled) {
@@ -821,9 +866,9 @@ function Tetris()
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 // Nunca operar sobre botPuzzle controlado por IA
-                if (actor && !actor.isHumanControlled) return;
+                if (!actor || !actor.isHumanControlled) { return; }
 
-                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+                if (!actor.isRunning() || actor.isStopped()) { return; }
 
                 if (actor.mayMoveLeft()) {
                         actor.moveLeft();
@@ -846,9 +891,9 @@ function Tetris()
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 // Nunca operar sobre botPuzzle controlado por IA
-                if (actor && !actor.isHumanControlled) return;
+                if (!actor || !actor.isHumanControlled) { return; }
 
-                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+                if (!actor.isRunning() || actor.isStopped()) { return; }
 
                 if (actor.mayMoveRight()) {
                         actor.moveRight();
@@ -871,9 +916,9 @@ function Tetris()
                 var actor = targetPuzzle || self.humanPuzzle;
 
                 // Nunca operar sobre botPuzzle controlado por IA
-                if (actor && !actor.isHumanControlled) return;
+                if (!actor || !actor.isHumanControlled) { return; }
 
-                if (!actor || !actor.isRunning() || actor.isStopped()) { return; }
+                if (!actor.isRunning() || actor.isStopped()) { return; }
 
                 actor.stop();
                 actor.forceMoveDown();
@@ -1751,6 +1796,8 @@ function Tetris()
                                         }
                                 }
                         }
+
+                        this.tetris.updateControlStyles(this);
 
                         // Activar el bot para la nueva pieza cuando corresponda
                 };
