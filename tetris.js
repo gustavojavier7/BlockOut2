@@ -368,6 +368,7 @@ function Tetris()
                 self.botPuzzle = self.humanPuzzle;
                 self.humanPuzzle = null;
                 self.botPuzzle.isHumanControlled = false;
+                self.botPuzzle.stopped = false;
                 // Desactivar gravedad temporalmente para que el bot anime la jugada sin interferencias
                 if (self.botPuzzle.fallDownID) {
                         clearTimeout(self.botPuzzle.fallDownID);
