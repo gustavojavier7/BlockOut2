@@ -133,6 +133,7 @@ function Tetris()
         this.areaX = 12;
         this.areaY = 22;
         this.isCoopMode = false; // Estado explícito del modo de juego
+        this.isIAAssist = false; // Flag interno para IA-ASSIST
 
         this.highscores = new Highscores(10);
         this.paused = false;
@@ -290,10 +291,29 @@ function Tetris()
          */
         this.setGameMode = function(coopEnabled)
         {
-                var requestedCoop = !!coopEnabled;
-                var wasCoop = self.isCoopMode;
+                self.updateGameMode({ coop: !!coopEnabled, ia: self.isIAAssist, zen: self.zenMode });
+        };
 
+        /**
+         * Centraliza el estado del modo de juego para evitar condiciones de carrera.
+         * Aplica reglas de exclusión entre Co-op y IA-ASSIST y sincroniza la UI.
+         * @param {{coop:boolean, ia:boolean, zen:boolean}} modeState
+         */
+        this.updateGameMode = function(modeState)
+        {
+                var requestedCoop = !!(modeState && modeState.coop);
+                var requestedIA = !!(modeState && modeState.ia);
+                var requestedZen = !!(modeState && modeState.zen);
+
+                // Fast fail: IA-ASSIST no puede coexistir con Co-op.
+                if (requestedCoop && requestedIA) {
+                        requestedIA = false;
+                }
+
+                var wasCoop = self.isCoopMode;
                 self.isCoopMode = requestedCoop;
+                self.isIAAssist = requestedIA;
+                self.zenMode = requestedZen;
                 self.areaX = 12;
                 self.areaY = 22;
 
@@ -302,10 +322,25 @@ function Tetris()
                         coopCheckbox.checked = self.isCoopMode;
                 }
 
+                var zenCheckbox = document.getElementById('tetris-zen-mode');
+                if (zenCheckbox) {
+                        zenCheckbox.checked = self.zenMode;
+                }
+
                 var indicator = document.getElementById('mode-indicator');
                 if (indicator) {
                         indicator.innerHTML = self.isCoopMode ? 'Modo Co-op Bot (12x22)' : 'Modo Clásico (12x22)';
                 }
+
+                var syncPanelToggle = function(id, isActive) {
+                        var toggle = document.getElementById(id);
+                        if (!toggle) { return; }
+                        toggle.classList.toggle('active', !!isActive);
+                };
+
+                syncPanelToggle('coopToggle', self.isCoopMode);
+                syncPanelToggle('iaAssistToggle', self.isIAAssist);
+                syncPanelToggle('zenToggle', self.zenMode);
 
                 var isGameRunning = self.humanPuzzle && self.humanPuzzle.isRunning();
 
@@ -314,16 +349,22 @@ function Tetris()
                                 self.reset();
                         }
                         self.updateResponsiveUnit();
-                        return;
-                }
+                } else {
+                        if (self.isCoopMode) {
+                                if (self.botPuzzle) {
+                                        self.botPuzzle.clearTimers();
+                                }
+                                if (self.humanPuzzle && typeof self.humanPuzzle.lockNow === 'function' && !self.humanPuzzle.locked) {
+                                        self.humanPuzzle.lockNow();
+                                }
 
-                if (self.isCoopMode) {
-                        if (!self.botPuzzle) {
-                                self.botPuzzle = new Puzzle(self, self.area, false);
+                                if (!self.botPuzzle) {
+                                        self.botPuzzle = new Puzzle(self, self.area, false);
+                                }
 
-                                if (self.humanPuzzle) {
+                                if (self.humanPuzzle && self.botPuzzle) {
                                         var nextType = (typeof self.humanPuzzle.nextType === 'number') ? self.humanPuzzle.nextType : random(self.humanPuzzle.puzzles.length);
-                                        self.botPuzzle.type = nextType;
+                                        self.botPuzzle.type = self.humanPuzzle.type;
                                         self.botPuzzle.nextType = nextType;
 
                                         if (self.humanPuzzle.history) {
@@ -331,31 +372,56 @@ function Tetris()
                                         }
                                 }
 
-                                self.botPuzzle.place();
-                        }
-                } else {
-                        if (self.botPuzzle) {
-                                self.botPuzzle.destroy();
-                                self.botPuzzle = null;
+                                if (self.botPuzzle && !self.botPuzzle.isRunning()) {
+                                        self.botPuzzle.place();
+                                }
+
+                                if (window.bot && typeof window.bot.clearGhostPreview === 'function') {
+                                        window.bot.clearGhostPreview();
+                                }
+                        } else {
+                                if (self.botPuzzle) {
+                                        self.botPuzzle.destroy();
+                                        self.botPuzzle = null;
+                                }
+
+                                if (window.bot && typeof window.bot.clearGhostPreview === 'function') {
+                                        window.bot.clearGhostPreview();
+                                }
                         }
 
-                        if (window.bot && typeof window.bot.clearGhostPreview === 'function') {
-                                window.bot.clearGhostPreview();
+                        if (window.bot) {
+                                window.bot.bestBotMove = null;
+                                window.bot.predictedBoard = null;
+                                if (!self.isCoopMode && typeof window.bot.clearGhostPreview === 'function') {
+                                        window.bot.clearGhostPreview();
+                                }
+                                if (typeof self.updateBotToggleLabel === 'function') {
+                                        self.updateBotToggleLabel();
+                                }
                         }
+
+                        self.updateResponsiveUnit();
+                }
+
+                if (self.isIAAssist) {
+                        self.enableIAAssist();
+                } else {
+                        self.disableIAAssist();
+                }
+
+                if (self.humanPuzzle && self.humanPuzzle.isRunning() && self.humanPuzzle.fallDownID) {
+                        self.humanPuzzle.speed = self.zenMode ? 1000 : (80 + (700 / self.stats.getLevel()));
+                        clearTimeout(self.humanPuzzle.fallDownID);
+                        self.humanPuzzle.fallDownID = setTimeout(self.humanPuzzle.fallDown, self.humanPuzzle.speed);
                 }
 
                 if (window.bot) {
-                        window.bot.bestBotMove = null;
-                        window.bot.predictedBoard = null;
-                        if (!self.isCoopMode && typeof window.bot.clearGhostPreview === 'function') {
-                                window.bot.clearGhostPreview();
-                        }
+                        window.bot.enabled = (self.isCoopMode || self.isIAAssist);
                         if (typeof self.updateBotToggleLabel === 'function') {
                                 self.updateBotToggleLabel();
                         }
                 }
-
-                self.updateResponsiveUnit();
         };
 
         /**
@@ -367,6 +433,7 @@ function Tetris()
 
                 self.botPuzzle = self.humanPuzzle;
                 self.humanPuzzle = null;
+                self.isIAAssist = true;
                 self.botPuzzle.isHumanControlled = false;
                 self.botPuzzle.stopped = false;
                 // Desactivar gravedad temporalmente para que el bot anime la jugada sin interferencias
@@ -400,6 +467,7 @@ function Tetris()
                 self.botPuzzle.isHumanControlled = true;
                 self.humanPuzzle = self.botPuzzle;
                 self.botPuzzle = null;
+                self.isIAAssist = false;
 
                 if (window.bot) {
                         if (!self.isCoopMode) {
@@ -1217,9 +1285,12 @@ function Tetris()
                 this.area = area;
                 this.isHumanControlled = !!isHumanControlled; // true si la pieza es controlada por el jugador humano
 
-		// timeout ids
+                // timeout ids
                 this.fallDownID = null;
                 this.forceMoveDownID = null;
+
+                // Bandera de consolidación inmediata para evitar piezas flotantes al cambiar de modo.
+                this.locked = false;
 
                 // Indicador para habilitar la planificación del bot solo cuando el humano haya actuado.
                 this.botReadyTriggered = false;
@@ -1330,6 +1401,7 @@ function Tetris()
                 this.reset = function(syncTypes)
                 {
                         this.clearTimers();
+                        this.locked = false;
 
                         var humanNextType = (this.tetris && this.tetris.humanPuzzle) ? this.tetris.humanPuzzle.nextType : null;
                         // Permite forzar la semilla de la pieza para sincronizar con el bot.
@@ -1459,9 +1531,10 @@ function Tetris()
 			var areaStartY = 1;
 			var lineFound = false;
 			var lines = 0;
-			this.x = areaStartX;
-			this.y = 1;
-			this.board = this.createEmptyPuzzle(puzzle.length, puzzle[0].length);
+                        this.x = areaStartX;
+                        this.y = 1;
+                        this.board = this.createEmptyPuzzle(puzzle.length, puzzle[0].length);
+                        this.locked = false;
 			// create puzzle
 			for (var y = puzzle.length - 1; y >= 0; y--) {
 				for (var x = 0; x < puzzle[y].length; x++) {
@@ -1542,6 +1615,23 @@ function Tetris()
                         }, 100);
                 };
 
+                /**
+                 * Consolida inmediatamente la pieza actual para evitar flotaciones al cambiar de modo.
+                 * @return void
+                 * @access public
+                 */
+                this.lockNow = function()
+                {
+                        if (!self.isRunning()) { return; }
+
+                        self.clearTimers();
+                        while (self.mayMoveDown()) {
+                                self.moveDown();
+                        }
+                        self.locked = true;
+                        self.fallDown();
+                };
+
 		/**
 		 * Remove puzzle from the area.
 		 * Clean some other stuff, see reset()
@@ -1555,6 +1645,7 @@ function Tetris()
                         this.clearElements();
                         this.running = false;
                         this.stopped = true;
+                        this.locked = false;
                         this.type = null;
                         this.nextType = null;
                         this.position = 0;
@@ -1588,11 +1679,12 @@ function Tetris()
 		this.fallDown = function()
 		{
 			if (self.isRunning()) {
-				if (self.mayMoveDown()) {
-					self.moveDown();
-					self.fallDownID = setTimeout(self.fallDown, self.speed);
-				} else {
-					// move blocks into area board
+                                if (self.mayMoveDown()) {
+                                        self.moveDown();
+                                        self.fallDownID = setTimeout(self.fallDown, self.speed);
+                                } else {
+                                        // move blocks into area board
+                                        self.locked = true;
                                         for (var i = 0; i < self.elements.length; i++) {
                                                 self.area.addElement(self.elements[i]);
                                         }
@@ -1639,17 +1731,18 @@ function Tetris()
 		this.forceMoveDown = function()
 		{
 			if (!self.isRunning() && !self.isStopped()) {
-				if (self.mayMoveDown()) {
-					// stats: score, actions
-					self.tetris.stats.setScore(self.tetris.stats.getScore() + 5 + self.tetris.stats.getLevel());
-					self.tetris.stats.setActions(self.tetris.stats.getActions() + 1);
-					self.moveDown();
-					self.forceMoveDownID = setTimeout(self.forceMoveDown, 30);
-				} else {
-					// move blocks into area board
-					for (var i = 0; i < self.elements.length; i++) {
-						self.area.addElement(self.elements[i]);
-					}
+                                if (self.mayMoveDown()) {
+                                        // stats: score, actions
+                                        self.tetris.stats.setScore(self.tetris.stats.getScore() + 5 + self.tetris.stats.getLevel());
+                                        self.tetris.stats.setActions(self.tetris.stats.getActions() + 1);
+                                        self.moveDown();
+                                        self.forceMoveDownID = setTimeout(self.forceMoveDown, 30);
+                                } else {
+                                        // move blocks into area board
+                                        self.locked = true;
+                                        for (var i = 0; i < self.elements.length; i++) {
+                                                self.area.addElement(self.elements[i]);
+                                        }
 					// stats: lines
 					var lines = self.area.removeFullLines();
 					if (lines) {

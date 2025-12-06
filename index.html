@@ -292,7 +292,7 @@
 
         function syncBotController() {
             if (window.bot) {
-                window.bot.enabled = (isCoopMode || isIAAssist);
+                window.bot.enabled = (tetris.isCoopMode || tetris.isIAAssist);
             }
         }
 
@@ -301,15 +301,10 @@
             const isActive = element.classList.contains('active');
 
             if (element.id === 'coopToggle') {
-                if (isActive && isIAAssist) {
-                    document.getElementById('iaAssistToggle').classList.remove('active');
-                    isIAAssist = false;
-                    tetris.disableIAAssist();
-                    alert('IA-ASSIST desactivado automáticamente (modo cooperativo activado)');
-                }
-
-                isCoopMode = isActive;
-                tetris.setGameMode(isCoopMode);
+                tetris.updateGameMode({ coop: isActive, ia: isIAAssist, zen: isZenMode });
+                isCoopMode = tetris.isCoopMode;
+                isIAAssist = tetris.isIAAssist;
+                isZenMode = tetris.zenMode;
 
                 const botSettings = document.getElementById('botSettings');
                 if (botSettings && !isIAAssist) {
@@ -318,20 +313,10 @@
 
                 syncBotController();
             } else if (element.id === 'iaAssistToggle') {
-                if (isActive && isCoopMode) {
-                    document.getElementById('coopToggle').classList.remove('active');
-                    isCoopMode = false;
-                    tetris.setGameMode(false);
-                    alert('Modo Co-op desactivado automáticamente (IA-ASSIST toma control exclusivo)');
-                }
-
-                isIAAssist = isActive;
-
-                if (isIAAssist) {
-                    tetris.enableIAAssist();
-                } else {
-                    tetris.disableIAAssist();
-                }
+                tetris.updateGameMode({ coop: isCoopMode, ia: isActive, zen: isZenMode });
+                isCoopMode = tetris.isCoopMode;
+                isIAAssist = tetris.isIAAssist;
+                isZenMode = tetris.zenMode;
 
                 const botSettings = document.getElementById('botSettings');
                 if (botSettings) {
@@ -340,10 +325,10 @@
 
                 syncBotController();
             } else if (element.id === 'zenToggle') {
-                isZenMode = isActive;
-                tetris.zenMode = isZenMode;
-                let zenCheck = document.getElementById("tetris-zen-mode");
-                if (zenCheck) { zenCheck.checked = isZenMode; zenCheck?.onchange?.(); }
+                tetris.updateGameMode({ coop: isCoopMode, ia: isIAAssist, zen: isActive });
+                isCoopMode = tetris.isCoopMode;
+                isIAAssist = tetris.isIAAssist;
+                isZenMode = tetris.zenMode;
             }
         }
 
